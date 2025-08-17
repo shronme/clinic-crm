@@ -1,0 +1,121 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Database
+*.db
+*.sqlite3
+
+# Docker
+.dockerignore
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Alembic migrations (keep template, ignore auto-generated)
+alembic/versions/*.py
+!alembic/versions/.gitkeep
+
+# Redis dumps
+dump.rdb
+
+# Media/File uploads
+media/
+static/uploads/
+photos/
+temp/
+
+# API documentation
+docs/_build/
+
+# Configuration overrides
+config/local.py
+local_settings.py
+
+# SSL certificates
+*.pem
+*.crt
+*.key
+
+# Backup files
+*.bak
+*.backup
+*.sql
+
+# Development databases
+dev.db
+test.db
+local.db
+
+# Cache directories
+.cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
+
+# Windows  
+Thumbs.db
+ehthumbs.db
+Desktop.ini
