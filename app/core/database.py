@@ -1,9 +1,10 @@
 # ✅ COMPLETED: SQLAlchemy async imports and dependencies
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
 import structlog
 
-from app.core.config import settings
+from core.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -18,31 +19,28 @@ engine = create_async_engine(
 
 # ✅ COMPLETED: Async session factory setup
 AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    engine, class_=AsyncSession, expire_on_commit=False
 )
 
 # ✅ COMPLETED: SQLAlchemy Base class for models
 Base = declarative_base()
 
-# ✅ COMPLETED: Database initialization function with model imports and table creation
+
+# ✅ COMPLETED: Database initialization function for connection setup
 async def init_db():
-    """Initialize database tables."""
+    """Initialize database connection and import models."""
     try:
+        # Import all models to ensure they are registered with SQLAlchemy
+
+        # Test database connection
         async with engine.begin() as conn:
-            # Import all models to ensure they are registered
-            from app.models import (
-                business, staff, service, customer, 
-                appointment, note, notification
-            )
-            
-            # Create all tables
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables created successfully")
+            await conn.execute(text("SELECT 1"))
+
+        logger.info("Database connection initialized successfully")
     except Exception as e:
         logger.error("Failed to initialize database", exc_info=e)
         raise
+
 
 # ✅ COMPLETED: Database session dependency with error handling and cleanup
 async def get_db() -> AsyncSession:

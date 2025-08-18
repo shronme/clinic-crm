@@ -1,7 +1,7 @@
 from celery import Celery
 import structlog
 
-from app.core.config import settings
+from core.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -10,12 +10,10 @@ celery_app = Celery(
     "clinic_crm",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=[
-        "app.services.notification_service",
-        "app.services.email_service", 
-        "app.services.sms_service"
-    ]
 )
+
+# Configure autodiscovery to find tasks
+celery_app.autodiscover_tasks()
 
 # Celery configuration
 celery_app.conf.update(
@@ -25,15 +23,12 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     result_expires=3600,
-    task_routes={
-        "app.services.notification_service.*": {"queue": "notifications"},
-        "app.services.email_service.*": {"queue": "emails"},
-        "app.services.sms_service.*": {"queue": "sms"},
-    },
+    task_routes={},
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     worker_max_tasks_per_child=1000,
 )
+
 
 @celery_app.task(bind=True)
 def debug_task(self):

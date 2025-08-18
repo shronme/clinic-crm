@@ -23,6 +23,7 @@ A lightweight, multi-tenant CRM and online booking platform for small barber sho
 ## Quick Start
 
 1. **Clone and setup environment**:
+
    ```bash
    git clone <repository-url>
    cd clinic-crm
@@ -31,6 +32,7 @@ A lightweight, multi-tenant CRM and online booking platform for small barber sho
    ```
 
 2. **Start with Docker Compose**:
+
    ```bash
    docker-compose up -d
    ```
@@ -43,6 +45,7 @@ A lightweight, multi-tenant CRM and online booking platform for small barber sho
 ## Development Setup
 
 1. **Install Python dependencies**:
+
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -50,18 +53,19 @@ A lightweight, multi-tenant CRM and online booking platform for small barber sho
    ```
 
 2. **Start services**:
+
    ```bash
    # Start PostgreSQL and Redis
    docker-compose up postgres redis -d
-   
+
    # Run migrations
    alembic upgrade head
-   
+
    # Start FastAPI server
    uvicorn app.main:app --reload
-   
+
    # Start Celery worker (in another terminal)
-   celery -A app.core.celery worker --loglevel=info
+   celery -A core.celery worker --loglevel=info
    ```
 
 ## Project Structure
@@ -87,10 +91,12 @@ clinic-crm/
 This project is currently in early development. The basic project structure and development environment have been set up (Tasks 1-2 completed).
 
 ### Completed Tasks
+
 - ✅ Task 1: Initialize project structure with Python/FastAPI backend
 - ✅ Task 2: Set up development environment with Docker containers
 
 ### Next Steps
+
 - Task 3: Design and implement database schema
 - Task 4: Implement multi-tenant data isolation
 - Task 5: Create authentication system

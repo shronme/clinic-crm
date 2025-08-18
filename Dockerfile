@@ -20,8 +20,11 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project
-COPY . .
+# Copy app directory contents to /app
+COPY app/ ./
+# Copy alembic configuration
+COPY alembic.ini ./
+COPY alembic/ /.
 
 # Create uploads directory
 RUN mkdir -p /uploads
@@ -30,4 +33,4 @@ RUN mkdir -p /uploads
 EXPOSE 8000
 
 # Default command
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

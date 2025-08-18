@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 def validate_timezone(timezone: str) -> str:
     """Validate timezone string."""
@@ -48,11 +48,13 @@ class BusinessBase(BaseModel):
     branding: Optional[BusinessBranding] = Field(None, description="Branding configuration")
     policy: Optional[BusinessPolicy] = Field(None, description="Booking policies")
 
-    @validator('timezone')
+    @field_validator('timezone')
+    @classmethod
     def validate_timezone_field(cls, v):
         return validate_timezone(v)
 
-    @validator('currency')
+    @field_validator('currency')
+    @classmethod
     def validate_currency_field(cls, v):
         return validate_currency(v)
 
@@ -75,13 +77,15 @@ class BusinessUpdate(BaseModel):
     policy: Optional[BusinessPolicy] = None
     is_active: Optional[bool] = None
 
-    @validator('timezone')
+    @field_validator('timezone')
+    @classmethod
     def validate_timezone_field(cls, v):
         if v is not None:
             return validate_timezone(v)
         return v
 
-    @validator('currency')
+    @field_validator('currency')
+    @classmethod
     def validate_currency_field(cls, v):
         if v is not None:
             return validate_currency(v)
@@ -94,5 +98,4 @@ class BusinessResponse(BusinessBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
