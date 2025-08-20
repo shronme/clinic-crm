@@ -4,9 +4,8 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.exc import IntegrityError
 import structlog
 
-from models.business import Business
-from schemas.business import BusinessCreate, BusinessUpdate
-from core.database import get_db
+from app.models.business import Business
+from app.schemas.business import BusinessCreate, BusinessUpdate
 
 logger = structlog.get_logger(__name__)
 

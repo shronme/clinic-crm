@@ -21,13 +21,16 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from core.database import Base
+from app.core.database import Base
 
 # Import all models to ensure they're registered
-from models import (
+from app.models import (
     business,
     staff,
     service,
+    service_category,
+    service_addon,
+    staff_service,
     customer,
     appointment,
     note,

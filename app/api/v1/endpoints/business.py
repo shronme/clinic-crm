@@ -2,9 +2,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from services.business import business_service
-from schemas.business import BusinessCreate, BusinessUpdate, BusinessResponse
+from app.core.database import get_db
+from app.services.business import business_service
+from app.schemas.business import BusinessCreate, BusinessUpdate, BusinessResponse
 
 router = APIRouter()
 

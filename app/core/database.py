@@ -4,7 +4,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 import structlog
 
-from core.config import settings
+from app.core.config import settings
 
 logger = structlog.get_logger(__name__)
 

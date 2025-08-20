@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime
 from pydantic import ValidationError
 
-from schemas.business import (
+from app.schemas.business import (
     BusinessCreate,
     BusinessUpdate,
     BusinessResponse,

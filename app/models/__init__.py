@@ -1,2 +1,2 @@
 # Import all models to ensure they are registered with SQLAlchemy
-from . import business, staff, service, customer, appointment, note, notification
+from . import business, staff, service, service_category, service_addon, staff_service, customer, appointment, note, notification, working_hours, time_off, availability_override

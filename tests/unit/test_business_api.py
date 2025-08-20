@@ -7,8 +7,8 @@ from httpx import AsyncClient
 from datetime import datetime
 
 from app.main import app
-from models.business import Business
-from schemas.business import (
+from app.models.business import Business
+from app.schemas.business import (
     BusinessCreate,
     BusinessUpdate,
     BusinessBranding,
@@ -73,7 +73,9 @@ class TestBusinessAPI:
         self, async_client, sample_business_data, override_get_db
     ):
         """Test successful business creation."""
-        with patch("services.business.business_service.create_business") as mock_create:
+        with patch(
+            "app.services.business.business_service.create_business"
+        ) as mock_create:
             mock_business = Business(id=1, **sample_business_data, is_active=True)
             mock_business.created_at = datetime(2024, 1, 15, 10, 30, 0)
             mock_business.updated_at = datetime(2024, 1, 15, 10, 30, 0)
@@ -95,7 +97,9 @@ class TestBusinessAPI:
         self, async_client, override_get_db
     ):
         """Test business creation with validation error."""
-        with patch("services.business.business_service.create_business") as mock_create:
+        with patch(
+            "app.services.business.business_service.create_business"
+        ) as mock_create:
             mock_create.side_effect = ValueError(
                 "Business with this name may already exist"
             )
@@ -114,7 +118,9 @@ class TestBusinessAPI:
         self, async_client, sample_business_data, override_get_db
     ):
         """Test business creation with server error."""
-        with patch("services.business.business_service.create_business") as mock_create:
+        with patch(
+            "app.services.business.business_service.create_business"
+        ) as mock_create:
             mock_create.side_effect = Exception("Database error")
 
             response = await async_client.post(
@@ -129,7 +135,7 @@ class TestBusinessAPI:
         self, async_client, sample_business_model, override_get_db
     ):
         """Test successful business retrieval."""
-        with patch("services.business.business_service.get_business") as mock_get:
+        with patch("app.services.business.business_service.get_business") as mock_get:
             mock_get.return_value = sample_business_model
 
             response = await async_client.get("/api/v1/business/1")
@@ -143,7 +149,7 @@ class TestBusinessAPI:
     @pytest.mark.asyncio
     async def test_get_business_not_found(self, async_client, override_get_db):
         """Test business retrieval when business not found."""
-        with patch("services.business.business_service.get_business") as mock_get:
+        with patch("app.services.business.business_service.get_business") as mock_get:
             mock_get.return_value = None
 
             response = await async_client.get("/api/v1/business/999")
@@ -157,7 +163,7 @@ class TestBusinessAPI:
     ):
         """Test successful businesses listing."""
         with patch(
-            "services.business.business_service.get_businesses"
+            "app.services.business.business_service.get_businesses"
         ) as mock_get_list:
             mock_get_list.return_value = [sample_business_model]
 
@@ -178,7 +184,7 @@ class TestBusinessAPI:
     async def test_get_businesses_with_pagination(self, async_client, override_get_db):
         """Test businesses listing with pagination parameters."""
         with patch(
-            "services.business.business_service.get_businesses"
+            "app.services.business.business_service.get_businesses"
         ) as mock_get_list:
             mock_get_list.return_value = []
 
@@ -217,7 +223,9 @@ class TestBusinessAPI:
         updated_business.created_at = sample_business_model.created_at
         updated_business.updated_at = datetime(2024, 1, 15, 10, 35, 0)  # Updated time
 
-        with patch("services.business.business_service.update_business") as mock_update:
+        with patch(
+            "app.services.business.business_service.update_business"
+        ) as mock_update:
             mock_update.return_value = updated_business
 
             response = await async_client.put("/api/v1/business/1", json=update_data)
@@ -231,7 +239,9 @@ class TestBusinessAPI:
     @pytest.mark.asyncio
     async def test_update_business_not_found(self, async_client, override_get_db):
         """Test business update when business not found."""
-        with patch("services.business.business_service.update_business") as mock_update:
+        with patch(
+            "app.services.business.business_service.update_business"
+        ) as mock_update:
             mock_update.return_value = None
 
             response = await async_client.put(
@@ -246,7 +256,9 @@ class TestBusinessAPI:
         self, async_client, override_get_db
     ):
         """Test business update with validation error."""
-        with patch("services.business.business_service.update_business") as mock_update:
+        with patch(
+            "app.services.business.business_service.update_business"
+        ) as mock_update:
             mock_update.side_effect = ValueError("Invalid data")
 
             response = await async_client.put(
@@ -261,7 +273,9 @@ class TestBusinessAPI:
         self, async_client, override_get_db
     ):
         """Test successful soft delete of business."""
-        with patch("services.business.business_service.delete_business") as mock_delete:
+        with patch(
+            "app.services.business.business_service.delete_business"
+        ) as mock_delete:
             mock_delete.return_value = True
 
             response = await async_client.delete("/api/v1/business/1?hard_delete=false")
@@ -276,7 +290,9 @@ class TestBusinessAPI:
         self, async_client, override_get_db
     ):
         """Test successful hard delete of business."""
-        with patch("services.business.business_service.delete_business") as mock_delete:
+        with patch(
+            "app.services.business.business_service.delete_business"
+        ) as mock_delete:
             mock_delete.return_value = True
 
             response = await async_client.delete("/api/v1/business/1?hard_delete=true")
@@ -289,7 +305,9 @@ class TestBusinessAPI:
     @pytest.mark.asyncio
     async def test_delete_business_not_found(self, async_client, override_get_db):
         """Test business deletion when business not found."""
-        with patch("services.business.business_service.delete_business") as mock_delete:
+        with patch(
+            "app.services.business.business_service.delete_business"
+        ) as mock_delete:
             mock_delete.return_value = False
 
             response = await async_client.delete("/api/v1/business/999")
@@ -303,7 +321,7 @@ class TestBusinessAPI:
     ):
         """Test successful business activation."""
         with patch(
-            "services.business.business_service.activate_business"
+            "app.services.business.business_service.activate_business"
         ) as mock_activate:
             mock_activate.return_value = sample_business_model
 
@@ -319,7 +337,7 @@ class TestBusinessAPI:
     async def test_activate_business_not_found(self, async_client, override_get_db):
         """Test business activation when business not found."""
         with patch(
-            "services.business.business_service.activate_business"
+            "app.services.business.business_service.activate_business"
         ) as mock_activate:
             mock_activate.return_value = None
 
@@ -350,7 +368,7 @@ class TestBusinessAPI:
     ):
         """Test businesses listing with pagination limits."""
         with patch(
-            "services.business.business_service.get_businesses"
+            "app.services.business.business_service.get_businesses"
         ) as mock_get_list:
             mock_get_list.return_value = []
 

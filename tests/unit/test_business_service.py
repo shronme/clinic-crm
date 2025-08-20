@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from services.business import BusinessService, business_service
-from models.business import Business
-from schemas.business import (
+from app.services.business import BusinessService, business_service
+from app.models.business import Business
+from app.schemas.business import (
     BusinessCreate,
     BusinessUpdate,
     BusinessBranding,
@@ -184,7 +184,7 @@ class TestBusinessService:
         mock_result.scalar_one_or_none.return_value = None
         mock_db_session.execute.return_value = mock_result
 
-        with patch("services.business.logger") as mock_logger:
+        with patch("app.services.business.logger") as mock_logger:
             result = await service.get_business(mock_db_session, 999)
 
             assert result is None
@@ -412,7 +412,7 @@ class TestBusinessService:
     ):
         """Test activation of already active business."""
         with patch.object(service, "get_business", return_value=sample_business_model):
-            with patch("services.business.logger") as mock_logger:
+            with patch("app.services.business.logger") as mock_logger:
                 result = await service.activate_business(mock_db_session, 1)
 
                 assert result == sample_business_model

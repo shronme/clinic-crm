@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 # Add the app directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.database import Base, get_db
+from app.core.database import Base, get_db
 from app.main import app
 
 
@@ -23,7 +23,7 @@ def event_loop():
 
 
 @pytest.fixture
-async def db_session():
+async def db():
     """Create a fresh database session for each test."""
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -45,12 +45,12 @@ async def db_session():
     await engine.dispose()
 
 
-@pytest.fixture
-def override_get_db(db_session: AsyncSession):
+@pytest.fixture(autouse=True)
+def override_get_db(db: AsyncSession):
     """Override the get_db dependency to use test database."""
 
     async def _override_get_db():
-        yield db_session
+        yield db
 
     app.dependency_overrides[get_db] = _override_get_db
     yield
@@ -61,3 +61,7 @@ def override_get_db(db_session: AsyncSession):
 def mock_datetime():
     """Mock datetime for consistent testing."""
     return datetime(2024, 1, 15, 10, 30, 0)
+
+
+# Import all service fixtures to make them available
+pytest_plugins = ["tests.fixtures.service_fixtures"]

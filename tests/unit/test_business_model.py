@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.business import Business
+from app.models.business import Business
 
 
 @pytest.mark.unit
@@ -11,12 +11,12 @@ class TestBusinessModel:
     """Unit tests for Business model."""
 
     @pytest.mark.asyncio
-    async def test_business_creation_with_defaults(self, db_session: AsyncSession):
+    async def test_business_creation_with_defaults(self, db: AsyncSession):
         """Test creating a business with default values."""
         business = Business(name="Test Salon")
-        db_session.add(business)
-        await db_session.commit()
-        await db_session.refresh(business)
+        db.add(business)
+        await db.commit()
+        await db.refresh(business)
 
         assert business.id is not None
         assert business.name == "Test Salon"
@@ -35,7 +35,7 @@ class TestBusinessModel:
         assert business.policy is None
 
     @pytest.mark.asyncio
-    async def test_business_creation_with_all_fields(self, db_session: AsyncSession):
+    async def test_business_creation_with_all_fields(self, db: AsyncSession):
         """Test creating a business with all fields populated."""
         branding_data = {
             "primary_color": "#FF0000",
@@ -68,9 +68,9 @@ class TestBusinessModel:
             is_active=True,
         )
 
-        db_session.add(business)
-        await db_session.commit()
-        await db_session.refresh(business)
+        db.add(business)
+        await db.commit()
+        await db.refresh(business)
 
         assert business.id is not None
         assert business.name == "Full Service Salon"
@@ -89,7 +89,7 @@ class TestBusinessModel:
         assert business.updated_at is not None
 
     @pytest.mark.asyncio
-    async def test_business_json_fields(self, db_session: AsyncSession):
+    async def test_business_json_fields(self, db: AsyncSession):
         """Test that JSON fields store and retrieve complex data correctly."""
         branding_data = {
             "primary_color": "#FF0000",
@@ -111,9 +111,9 @@ class TestBusinessModel:
             name="JSON Test Salon", branding=branding_data, policy=policy_data
         )
 
-        db_session.add(business)
-        await db_session.commit()
-        await db_session.refresh(business)
+        db.add(business)
+        await db.commit()
+        await db.refresh(business)
 
         # Verify JSON data is stored and retrieved correctly
         assert business.branding["primary_color"] == "#FF0000"
@@ -129,21 +129,21 @@ class TestBusinessModel:
         assert business.policy["late_arrival_grace_minutes"] == 5
 
     @pytest.mark.asyncio
-    async def test_business_name_required(self, db_session: AsyncSession):
+    async def test_business_name_required(self, db: AsyncSession):
         """Test that business name is required."""
         business = Business()  # No name provided
-        db_session.add(business)
+        db.add(business)
 
         with pytest.raises(Exception):  # Should raise IntegrityError
-            await db_session.commit()
+            await db.commit()
 
     @pytest.mark.asyncio
-    async def test_business_audit_timestamps(self, db_session: AsyncSession):
+    async def test_business_audit_timestamps(self, db: AsyncSession):
         """Test that audit timestamps are set correctly."""
         business = Business(name="Timestamp Test Salon")
-        db_session.add(business)
-        await db_session.commit()
-        await db_session.refresh(business)
+        db.add(business)
+        await db.commit()
+        await db.refresh(business)
 
         initial_created_at = business.created_at
         initial_updated_at = business.updated_at
@@ -157,8 +157,8 @@ class TestBusinessModel:
 
         # Update the business
         business.description = "Updated description"
-        await db_session.commit()
-        await db_session.refresh(business)
+        await db.commit()
+        await db.refresh(business)
 
         # created_at should remain the same, updated_at should change
         assert business.created_at == initial_created_at
@@ -167,7 +167,7 @@ class TestBusinessModel:
         )  # Use >= instead of > for fast systems
 
     @pytest.mark.asyncio
-    async def test_business_string_length_limits(self, db_session: AsyncSession):
+    async def test_business_string_length_limits(self, db: AsyncSession):
         """Test string field length constraints."""
         # Test with valid lengths
         base_logo = "https://example.com/"
@@ -191,9 +191,9 @@ class TestBusinessModel:
             currency="USD",  # Valid currency under 10 chars
         )
 
-        db_session.add(business)
-        await db_session.commit()
-        await db_session.refresh(business)
+        db.add(business)
+        await db.commit()
+        await db.refresh(business)
 
         assert len(business.name) == 255
         assert len(business.logo_url) == 500

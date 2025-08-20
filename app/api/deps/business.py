@@ -3,9 +3,9 @@ from fastapi import Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
-from core.database import get_db
-from models.business import Business
-from services.business import business_service
+from app.core.database import get_db
+from app.models.business import Business
+from app.services.business import BusinessService
 
 logger = structlog.get_logger(__name__)
 
@@ -33,6 +33,7 @@ async def get_business_context(
     3. All subsequent operations are scoped to this business
     """
     try:
+        business_service = BusinessService()
         business = await business_service.get_business(db, business_id)
 
         if not business:
