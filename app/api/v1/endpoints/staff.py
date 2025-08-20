@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
 from app.api.deps.database import get_db
 from app.api.deps.auth import get_current_staff
@@ -13,13 +14,10 @@ from app.schemas.staff import (
     StaffSummary,
     StaffWithServices,
     WorkingHoursCreate,
-    WorkingHoursUpdate,
     WorkingHours,
     TimeOffCreate,
-    TimeOffUpdate,
     TimeOff,
     AvailabilityOverrideCreate,
-    AvailabilityOverrideUpdate,
     AvailabilityOverride,
     StaffAvailabilityQuery,
     StaffAvailabilityResponse,
@@ -104,23 +102,23 @@ async def create_staff(
         )
 
 
-@router.get("/{staff_id}", response_model=StaffSchema)
-async def get_staff_by_id(
-    staff_id: int,
+@router.get("/{staff_uuid}", response_model=StaffSchema)
+async def get_staff_by_uuid(
+    staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
-    Get a specific staff member by ID.
+    Get a specific staff member by UUID.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - Returns staff member details
     """
     # Check permissions - staff can only view their own profile unless they're admin
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -128,7 +126,9 @@ async def get_staff_by_id(
         )
 
     service = StaffManagementService(db)
-    staff = await service.get_staff(staff_id, business_id=business_context.business_id)
+    staff = await service.get_staff_by_uuid(
+        staff_uuid, business_id=business_context.business_id
+    )
 
     if not staff:
         raise HTTPException(
@@ -138,9 +138,9 @@ async def get_staff_by_id(
     return staff
 
 
-@router.put("/{staff_id}", response_model=StaffSchema)
+@router.put("/{staff_uuid}", response_model=StaffSchema)
 async def update_staff(
-    staff_id: int,
+    staff_uuid: UUID,
     staff_data: StaffUpdate,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -149,14 +149,14 @@ async def update_staff(
     """
     Update a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **staff_data**: Updated staff information
     - Returns updated staff member
     """
     # Check permissions - staff can only update their own profile unless they're admin
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -175,8 +175,8 @@ async def update_staff(
         )
 
     service = StaffManagementService(db)
-    staff = await service.update_staff(
-        staff_id, staff_data, business_id=business_context.business_id
+    staff = await service.update_staff_by_uuid(
+        staff_uuid, staff_data, business_id=business_context.business_id
     )
 
     if not staff:
@@ -187,9 +187,9 @@ async def update_staff(
     return staff
 
 
-@router.delete("/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{staff_uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_staff(
-    staff_id: int,
+    staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
@@ -197,7 +197,7 @@ async def delete_staff(
     """
     Delete (deactivate) a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - Returns no content on success
     """
     # Check permissions - only owners/admins can delete staff
@@ -208,15 +208,15 @@ async def delete_staff(
         )
 
     # Prevent self-deletion
-    if current_staff.id == staff_id:
+    if current_staff.uuid == staff_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account",
         )
 
     service = StaffManagementService(db)
-    success = await service.delete_staff(
-        staff_id, business_id=business_context.business_id
+    success = await service.delete_staff_by_uuid(
+        staff_uuid, business_id=business_context.business_id
     )
 
     if not success:
@@ -226,9 +226,9 @@ async def delete_staff(
 
 
 # Working Hours Management
-@router.post("/{staff_id}/working-hours", response_model=List[WorkingHours])
+@router.post("/{staff_uuid}/working-hours", response_model=List[WorkingHours])
 async def set_staff_working_hours(
-    staff_id: int,
+    staff_uuid: UUID,
     working_hours: List[WorkingHoursCreate],
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -237,14 +237,14 @@ async def set_staff_working_hours(
     """
     Set working hours for a staff member (replaces existing).
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **working_hours**: List of working hours
     - Returns list of created working hours
     """
     # Check permissions - staff can only set their own hours unless they're admin
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -253,7 +253,7 @@ async def set_staff_working_hours(
 
     service = StaffManagementService(db)
     try:
-        hours = await service.set_staff_working_hours(staff_id, working_hours)
+        hours = await service.set_staff_working_hours_by_uuid(staff_uuid, working_hours)
         return hours
     except HTTPException:
         raise
@@ -264,9 +264,9 @@ async def set_staff_working_hours(
         )
 
 
-@router.get("/{staff_id}/working-hours", response_model=List[WorkingHours])
+@router.get("/{staff_uuid}/working-hours", response_model=List[WorkingHours])
 async def get_staff_working_hours(
-    staff_id: int,
+    staff_uuid: UUID,
     active_only: bool = Query(True, description="Include only active working hours"),
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -275,14 +275,14 @@ async def get_staff_working_hours(
     """
     Get working hours for a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **active_only**: Whether to include only active working hours
     - Returns list of working hours
     """
     # Check permissions - staff can view their own hours, admins can view all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -290,16 +290,20 @@ async def get_staff_working_hours(
         )
 
     service = StaffManagementService(db)
-    hours = await service.get_staff_working_hours(staff_id, active_only=active_only)
+    hours = await service.get_staff_working_hours_by_uuid(
+        staff_uuid, active_only=active_only
+    )
     return hours
 
 
 # Time-Off Management
 @router.post(
-    "/{staff_id}/time-off", response_model=TimeOff, status_code=status.HTTP_201_CREATED
+    "/{staff_uuid}/time-off",
+    response_model=TimeOff,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_time_off(
-    staff_id: int,
+    staff_uuid: UUID,
     time_off_data: TimeOffCreate,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -308,14 +312,14 @@ async def create_time_off(
     """
     Create a time-off request for a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **time_off_data**: Time-off request information
     - Returns created time-off request
     """
     # Check permissions - staff can only create their own time-off unless they're admin
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -324,8 +328,8 @@ async def create_time_off(
 
     service = StaffManagementService(db)
     try:
-        time_off = await service.create_time_off(
-            staff_id, time_off_data, created_by_staff_id=current_staff.id
+        time_off = await service.create_time_off_by_uuid(
+            staff_uuid, time_off_data, created_by_staff_id=current_staff.id
         )
         return time_off
     except HTTPException:
@@ -337,9 +341,9 @@ async def create_time_off(
         )
 
 
-@router.get("/{staff_id}/time-off", response_model=List[TimeOff])
+@router.get("/{staff_uuid}/time-off", response_model=List[TimeOff])
 async def get_staff_time_offs(
-    staff_id: int,
+    staff_uuid: UUID,
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
@@ -349,7 +353,7 @@ async def get_staff_time_offs(
     """
     Get time-off requests for a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **start_date**: Optional start date filter
     - **end_date**: Optional end date filter
     - Returns list of time-off requests
@@ -357,7 +361,7 @@ async def get_staff_time_offs(
     # Check permissions - staff can view their own time-offs, admins can view all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -389,15 +393,15 @@ async def get_staff_time_offs(
             )
 
     service = StaffManagementService(db)
-    time_offs = await service.get_staff_time_offs(
-        staff_id, start_date=parsed_start_date, end_date=parsed_end_date
+    time_offs = await service.get_staff_time_offs_by_uuid(
+        staff_uuid, start_date=parsed_start_date, end_date=parsed_end_date
     )
     return time_offs
 
 
-@router.post("/time-off/{time_off_id}/approve", response_model=TimeOff)
+@router.post("/time-off/{time_off_uuid}/approve", response_model=TimeOff)
 async def approve_time_off(
-    time_off_id: int,
+    time_off_uuid: UUID,
     approval_notes: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -406,7 +410,7 @@ async def approve_time_off(
     """
     Approve a time-off request.
 
-    - **time_off_id**: ID of the time-off request
+    - **time_off_uuid**: UUID of the time-off request
     - **approval_notes**: Optional approval notes
     - Returns approved time-off request
     """
@@ -419,8 +423,8 @@ async def approve_time_off(
 
     service = StaffManagementService(db)
     try:
-        time_off = await service.approve_time_off(
-            time_off_id,
+        time_off = await service.approve_time_off_by_uuid(
+            time_off_uuid,
             approved_by_staff_id=current_staff.id,
             approval_notes=approval_notes,
         )
@@ -434,9 +438,9 @@ async def approve_time_off(
         )
 
 
-@router.post("/time-off/{time_off_id}/deny", response_model=TimeOff)
+@router.post("/time-off/{time_off_uuid}/deny", response_model=TimeOff)
 async def deny_time_off(
-    time_off_id: int,
+    time_off_uuid: UUID,
     denial_notes: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -445,7 +449,7 @@ async def deny_time_off(
     """
     Deny a time-off request.
 
-    - **time_off_id**: ID of the time-off request
+    - **time_off_uuid**: UUID of the time-off request
     - **denial_notes**: Optional denial notes
     - Returns denied time-off request
     """
@@ -458,8 +462,10 @@ async def deny_time_off(
 
     service = StaffManagementService(db)
     try:
-        time_off = await service.deny_time_off(
-            time_off_id, denied_by_staff_id=current_staff.id, denial_notes=denial_notes
+        time_off = await service.deny_time_off_by_uuid(
+            time_off_uuid,
+            denied_by_staff_id=current_staff.id,
+            denial_notes=denial_notes,
         )
         return time_off
     except HTTPException:
@@ -473,12 +479,12 @@ async def deny_time_off(
 
 # Availability Override Management
 @router.post(
-    "/{staff_id}/availability-overrides",
+    "/{staff_uuid}/availability-overrides",
     response_model=AvailabilityOverride,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_availability_override(
-    staff_id: int,
+    staff_uuid: UUID,
     override_data: AvailabilityOverrideCreate,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -487,14 +493,14 @@ async def create_availability_override(
     """
     Create an availability override for a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **override_data**: Availability override information
     - Returns created availability override
     """
     # Check permissions - staff can only create their own overrides unless they're admin
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -502,7 +508,7 @@ async def create_availability_override(
         )
 
     # Ensure staff_id in override data matches path parameter
-    if override_data.staff_id != staff_id:
+    if override_data.staff_id != staff_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Staff ID in override data must match path parameter",
@@ -510,7 +516,7 @@ async def create_availability_override(
 
     service = StaffManagementService(db)
     try:
-        override = await service.create_availability_override(
+        override = await service.create_availability_override_by_uuid(
             override_data, created_by_staff_id=current_staff.id
         )
         return override
@@ -524,10 +530,10 @@ async def create_availability_override(
 
 
 @router.get(
-    "/{staff_id}/availability-overrides", response_model=List[AvailabilityOverride]
+    "/{staff_uuid}/availability-overrides", response_model=List[AvailabilityOverride]
 )
 async def get_staff_availability_overrides(
-    staff_id: int,
+    staff_uuid: UUID,
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
@@ -537,7 +543,7 @@ async def get_staff_availability_overrides(
     """
     Get availability overrides for a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **start_date**: Optional start date filter
     - **end_date**: Optional end date filter
     - Returns list of availability overrides
@@ -545,7 +551,7 @@ async def get_staff_availability_overrides(
     # Check permissions - staff can view their own overrides, admins can view all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -577,16 +583,16 @@ async def get_staff_availability_overrides(
             )
 
     service = StaffManagementService(db)
-    overrides = await service.get_staff_availability_overrides(
-        staff_id, start_date=parsed_start_date, end_date=parsed_end_date
+    overrides = await service.get_staff_availability_overrides_by_uuid(
+        staff_uuid, start_date=parsed_start_date, end_date=parsed_end_date
     )
     return overrides
 
 
 # Availability Calculation
-@router.post("/{staff_id}/availability", response_model=StaffAvailabilityResponse)
+@router.post("/{staff_uuid}/availability", response_model=StaffAvailabilityResponse)
 async def calculate_staff_availability(
-    staff_id: int,
+    staff_uuid: UUID,
     availability_query: StaffAvailabilityQuery,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -595,14 +601,14 @@ async def calculate_staff_availability(
     """
     Calculate staff availability for a given time period.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **availability_query**: Query parameters for availability calculation
     - Returns staff availability response
     """
     # Check permissions - staff can check their own availability, admins can check all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -611,8 +617,8 @@ async def calculate_staff_availability(
 
     service = StaffManagementService(db)
     try:
-        availability = await service.calculate_staff_availability(
-            availability_query, staff_id
+        availability = await service.calculate_staff_availability_by_uuid(
+            availability_query, staff_uuid
         )
         return availability
     except HTTPException:
@@ -625,9 +631,9 @@ async def calculate_staff_availability(
 
 
 # Service Mapping Management
-@router.post("/{staff_id}/services", response_model=dict)
+@router.post("/{staff_uuid}/services", response_model=dict)
 async def assign_service_to_staff(
-    staff_id: int,
+    staff_uuid: UUID,
     service_override: StaffServiceOverride,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -636,7 +642,7 @@ async def assign_service_to_staff(
     """
     Assign a service to a staff member with optional overrides.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **service_override**: Service assignment with overrides
     - Returns created/updated service assignment
     """
@@ -651,8 +657,8 @@ async def assign_service_to_staff(
     try:
         # Convert schema to kwargs for the service method
         overrides = service_override.dict(exclude={"service_id"})
-        staff_service = await service.assign_service_to_staff(
-            staff_id, service_override.service_id, **overrides
+        staff_service = await service.assign_service_to_staff_by_uuid(
+            staff_uuid, service_override.service_id, **overrides
         )
         return {
             "message": "Service assigned successfully",
@@ -670,11 +676,11 @@ async def assign_service_to_staff(
 
 
 @router.delete(
-    "/{staff_id}/services/{service_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{staff_uuid}/services/{service_uuid}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def remove_service_from_staff(
-    staff_id: int,
-    service_id: int,
+    staff_uuid: UUID,
+    service_uuid: UUID,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
@@ -682,8 +688,8 @@ async def remove_service_from_staff(
     """
     Remove a service assignment from a staff member.
 
-    - **staff_id**: ID of the staff member
-    - **service_id**: ID of the service to remove
+    - **staff_uuid**: UUID of the staff member
+    - **service_uuid**: UUID of the service to remove
     - Returns no content on success
     """
     # Check permissions - only owners/admins can remove service assignments
@@ -694,7 +700,7 @@ async def remove_service_from_staff(
         )
 
     service = StaffManagementService(db)
-    success = await service.remove_service_from_staff(staff_id, service_id)
+    success = await service.remove_service_from_staff_by_uuid(staff_uuid, service_uuid)
 
     if not success:
         raise HTTPException(
@@ -702,9 +708,9 @@ async def remove_service_from_staff(
         )
 
 
-@router.get("/{staff_id}/services", response_model=List[dict])
+@router.get("/{staff_uuid}/services", response_model=List[dict])
 async def get_staff_services(
-    staff_id: int,
+    staff_uuid: UUID,
     available_only: bool = Query(True, description="Include only available services"),
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
@@ -713,14 +719,14 @@ async def get_staff_services(
     """
     Get all services assigned to a staff member.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - **available_only**: Whether to include only available services
     - Returns list of service assignments
     """
     # Check permissions - staff can view their own services, admins can view all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -728,8 +734,8 @@ async def get_staff_services(
         )
 
     service = StaffManagementService(db)
-    staff_services = await service.get_staff_services(
-        staff_id, available_only=available_only
+    staff_services = await service.get_staff_services_by_uuid(
+        staff_uuid, available_only=available_only
     )
 
     # Convert to response format
@@ -755,9 +761,9 @@ async def get_staff_services(
 
 
 # Staff with Services (comprehensive view)
-@router.get("/{staff_id}/with-services", response_model=StaffWithServices)
+@router.get("/{staff_uuid}/with-services", response_model=StaffWithServices)
 async def get_staff_with_services(
-    staff_id: int,
+    staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
@@ -765,13 +771,13 @@ async def get_staff_with_services(
     """
     Get staff member with all their service assignments and details.
 
-    - **staff_id**: ID of the staff member
+    - **staff_uuid**: UUID of the staff member
     - Returns staff member with comprehensive service information
     """
     # Check permissions - staff can view their own profile, admins can view all
     if (
         current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
-        and current_staff.id != staff_id
+        and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -779,7 +785,9 @@ async def get_staff_with_services(
         )
 
     service = StaffManagementService(db)
-    staff = await service.get_staff(staff_id, business_id=business_context.business_id)
+    staff = await service.get_staff_by_uuid(
+        staff_uuid, business_id=business_context.business_id
+    )
 
     if not staff:
         raise HTTPException(
@@ -787,7 +795,9 @@ async def get_staff_with_services(
         )
 
     # Get staff services
-    staff_services = await service.get_staff_services(staff_id, available_only=False)
+    staff_services = await service.get_staff_services_by_uuid(
+        staff_uuid, available_only=False
+    )
 
     # Convert to response format
     services_data = []

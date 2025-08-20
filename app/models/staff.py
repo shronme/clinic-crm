@@ -8,10 +8,12 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
+import uuid
 
 
 class StaffRole(enum.Enum):
@@ -27,6 +29,9 @@ class Staff(Base):
 
     # Core identity
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
+    )
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=True)

@@ -1,7 +1,18 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Numeric
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Text,
+    Boolean,
+    ForeignKey,
+    Numeric,
+)
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+import uuid
 
 
 class ServiceAddon(Base):
@@ -11,6 +22,9 @@ class ServiceAddon(Base):
 
     # Core identity
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
+    )
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     name = Column(String(255), nullable=False)
@@ -18,11 +32,13 @@ class ServiceAddon(Base):
 
     # Add-on details
     extra_duration_minutes = Column(Integer, default=0)  # Additional time required
-    price = Column(Numeric(10, 2), nullable=False)       # Add-on price
+    price = Column(Numeric(10, 2), nullable=False)  # Add-on price
 
     # Add-on behavior
     is_active = Column(Boolean, default=True, nullable=False)
-    is_required = Column(Boolean, default=False, nullable=False)  # If mandatory for service
+    is_required = Column(
+        Boolean, default=False, nullable=False
+    )  # If mandatory for service
     max_quantity = Column(Integer, default=1)  # Maximum units can be added
 
     # Display and organization
@@ -39,4 +55,7 @@ class ServiceAddon(Base):
     service = relationship("Service", back_populates="service_addons")
 
     def __repr__(self):
-        return f"<ServiceAddon(id={self.id}, name='{self.name}', service_id={self.service_id}, price=${self.price})>"
+        return (
+            f"<ServiceAddon(id={self.id}, name='{self.name}', "
+            f"service_id={self.service_id}, price=${self.price})>"
+        )

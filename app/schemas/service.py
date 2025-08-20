@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -12,7 +13,7 @@ class ServiceCategoryBase(BaseModel):
     sort_order: int = 0
     is_active: bool = True
     icon: Optional[str] = Field(None, max_length=100)
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class ServiceCategoryCreate(ServiceCategoryBase):
@@ -26,11 +27,12 @@ class ServiceCategoryUpdate(BaseModel):
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
     icon: Optional[str] = Field(None, max_length=100)
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class ServiceCategory(ServiceCategoryBase):
     id: int
+    uuid: UUID
     business_id: int
     created_at: datetime
     updated_at: datetime
@@ -55,12 +57,12 @@ class ServiceBase(BaseModel):
     min_lead_time_hours: Optional[int] = Field(None, ge=0)
     sort_order: int = 0
     image_url: Optional[str] = Field(None, max_length=500)
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_deposit_amount(self):
         if self.requires_deposit and self.deposit_amount is None:
-            raise ValueError('Deposit amount is required when requires_deposit is True')
+            raise ValueError("Deposit amount is required when requires_deposit is True")
         return self
 
 
@@ -83,11 +85,12 @@ class ServiceUpdate(BaseModel):
     min_lead_time_hours: Optional[int] = Field(None, ge=0)
     sort_order: Optional[int] = None
     image_url: Optional[str] = Field(None, max_length=500)
-    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class Service(ServiceBase):
     id: int
+    uuid: UUID
     business_id: int
     total_duration_minutes: int
     created_at: datetime
@@ -173,5 +176,3 @@ class StaffService(StaffServiceBase):
 
     class Config:
         from_attributes = True
-
-

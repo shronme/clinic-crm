@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
 from app.core.database import get_db
 from app.services.business import business_service
@@ -19,17 +20,17 @@ async def create_business(
         return business
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create business",
         )
 
 
-@router.get("/{business_id}", response_model=BusinessResponse)
-async def get_business(business_id: int, db: AsyncSession = Depends(get_db)):
-    """Get business profile by ID."""
-    business = await business_service.get_business(db, business_id)
+@router.get("/{business_uuid}", response_model=BusinessResponse)
+async def get_business(business_uuid: UUID, db: AsyncSession = Depends(get_db)):
+    """Get business profile by UUID."""
+    business = await business_service.get_business_by_uuid(db, business_uuid)
     if not business:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Business not found"
@@ -53,16 +54,16 @@ async def get_businesses(
     return businesses
 
 
-@router.put("/{business_id}", response_model=BusinessResponse)
+@router.put("/{business_uuid}", response_model=BusinessResponse)
 async def update_business(
-    business_id: int,
+    business_uuid: UUID,
     business_update: BusinessUpdate,
     db: AsyncSession = Depends(get_db),
 ):
     """Update business profile."""
     try:
-        business = await business_service.update_business(
-            db, business_id, business_update
+        business = await business_service.update_business_by_uuid(
+            db, business_uuid, business_update
         )
         if not business:
             raise HTTPException(
@@ -73,24 +74,24 @@ async def update_business(
         raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update business",
         )
 
 
-@router.delete("/{business_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{business_uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_business(
-    business_id: int,
+    business_uuid: UUID,
     hard_delete: bool = Query(
         False, description="Perform hard delete instead of soft delete"
     ),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete business (soft delete by default)."""
-    success = await business_service.delete_business(
-        db, business_id, soft_delete=not hard_delete
+    success = await business_service.delete_business_by_uuid(
+        db, business_uuid, soft_delete=not hard_delete
     )
     if not success:
         raise HTTPException(
@@ -98,10 +99,10 @@ async def delete_business(
         )
 
 
-@router.post("/{business_id}/activate", response_model=BusinessResponse)
-async def activate_business(business_id: int, db: AsyncSession = Depends(get_db)):
+@router.post("/{business_uuid}/activate", response_model=BusinessResponse)
+async def activate_business(business_uuid: UUID, db: AsyncSession = Depends(get_db)):
     """Reactivate a soft-deleted business."""
-    business = await business_service.activate_business(db, business_id)
+    business = await business_service.activate_business_by_uuid(db, business_uuid)
     if not business:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Business not found"

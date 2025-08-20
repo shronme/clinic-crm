@@ -9,10 +9,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
+import uuid
 
 
 class OwnerType(enum.Enum):
@@ -44,6 +46,9 @@ class TimeOff(Base):
 
     # Core identity
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
+    )
     owner_type = Column(Enum(OwnerType), nullable=False)
     owner_id = Column(Integer, nullable=False)
 

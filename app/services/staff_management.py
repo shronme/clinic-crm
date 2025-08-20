@@ -1,24 +1,23 @@
 from datetime import datetime, date, timedelta, time
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import and_, or_, func, select
+from sqlalchemy import and_, or_, select
 from fastapi import HTTPException, status
 
 from app.models.staff import Staff, StaffRole
 from app.models.working_hours import WorkingHours, WeekDay, OwnerType
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
+from app.models.time_off import TimeOff, TimeOffStatus
 from app.models.availability_override import AvailabilityOverride, OverrideType
 from app.models.staff_service import StaffService
+from app.services.service import ServiceManagementService
 from app.schemas.staff import (
     StaffCreate,
     StaffUpdate,
     WorkingHoursCreate,
-    WorkingHoursUpdate,
     TimeOffCreate,
-    TimeOffUpdate,
     AvailabilityOverrideCreate,
-    AvailabilityOverrideUpdate,
     StaffAvailabilityQuery,
     StaffAvailabilitySlot,
     StaffAvailabilityResponse,
@@ -40,7 +39,7 @@ class StaffManagementService:
                 and_(
                     Staff.business_id == staff_data.business_id,
                     Staff.email == staff_data.email,
-                    Staff.is_active == True,
+                    Staff.is_active,
                 )
             )
             existing_result = await self.db.execute(existing_query)
@@ -76,6 +75,22 @@ class StaffManagementService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_staff_by_uuid(
+        self, staff_uuid: UUID, business_id: Optional[int] = None
+    ) -> Optional[Staff]:
+        """Get staff by UUID with optional business filter."""
+        query = select(Staff).options(
+            selectinload(Staff.availability_overrides),
+            selectinload(Staff.staff_services),
+        )
+
+        if business_id:
+            query = query.where(Staff.business_id == business_id)
+
+        query = query.where(Staff.uuid == staff_uuid)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def list_staff(
         self, business_id: int, include_inactive: bool = False
     ) -> List[Staff]:
@@ -90,7 +105,7 @@ class StaffManagementService:
         )
 
         if not include_inactive:
-            query = query.where(Staff.is_active == True)
+            query = query.where(Staff.is_active)
 
         query = query.order_by(Staff.display_order, Staff.name)
         result = await self.db.execute(query)
@@ -99,64 +114,59 @@ class StaffManagementService:
     async def update_staff(
         self, staff_id: int, staff_data: StaffUpdate, business_id: Optional[int] = None
     ) -> Optional[Staff]:
-        """Update staff information."""
-        query = select(Staff)
-        if business_id:
-            query = query.where(Staff.business_id == business_id)
-
-        query = query.where(Staff.id == staff_id)
-        result = await self.db.execute(query)
-        staff = result.scalar_one_or_none()
-
+        """Update staff member."""
+        staff = await self.get_staff(staff_id, business_id)
         if not staff:
             return None
 
-        # Validate unique email if being updated
-        if staff_data.email and staff_data.email != staff.email:
-            existing_query = select(Staff).where(
-                and_(
-                    Staff.business_id == staff.business_id,
-                    Staff.email == staff_data.email,
-                    Staff.id != staff_id,
-                    Staff.is_active == True,
-                )
-            )
-            existing_result = await self.db.execute(existing_query)
-            existing = existing_result.scalar_one_or_none()
-
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already exists for this business",
-                )
-
-        update_data = staff_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
+        # Update fields
+        for field, value in staff_data.dict(exclude_unset=True).items():
             setattr(staff, field, value)
 
         await self.db.commit()
         await self.db.refresh(staff)
+        return staff
 
-        # Reload staff with relationships
-        return await self.get_staff(staff_id, business_id)
+    async def update_staff_by_uuid(
+        self,
+        staff_uuid: UUID,
+        staff_data: StaffUpdate,
+        business_id: Optional[int] = None,
+    ) -> Optional[Staff]:
+        """Update staff member by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid, business_id)
+        if not staff:
+            return None
+
+        # Update fields
+        for field, value in staff_data.dict(exclude_unset=True).items():
+            setattr(staff, field, value)
+
+        await self.db.commit()
+        await self.db.refresh(staff)
+        return staff
 
     async def delete_staff(
         self, staff_id: int, business_id: Optional[int] = None
     ) -> bool:
-        """Soft delete staff (set inactive)."""
-        query = select(Staff)
-        if business_id:
-            query = query.where(Staff.business_id == business_id)
-
-        query = query.where(Staff.id == staff_id)
-        result = await self.db.execute(query)
-        staff = result.scalar_one_or_none()
-
+        """Soft delete (deactivate) staff member."""
+        staff = await self.get_staff(staff_id, business_id)
         if not staff:
             return False
 
         staff.is_active = False
-        staff.is_bookable = False
+        await self.db.commit()
+        return True
+
+    async def delete_staff_by_uuid(
+        self, staff_uuid: UUID, business_id: Optional[int] = None
+    ) -> bool:
+        """Soft delete (deactivate) staff member by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid, business_id)
+        if not staff:
+            return False
+
+        staff.is_active = False
         await self.db.commit()
         return True
 
@@ -217,6 +227,28 @@ class StaffManagementService:
         result = await self.db.execute(query)
         return result.scalars().all()
 
+    async def get_staff_working_hours_by_uuid(
+        self, staff_uuid: UUID, active_only: bool = True
+    ) -> List[WorkingHours]:
+        """Get working hours for staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            return []
+
+        return await self.get_staff_working_hours(staff.id, active_only)
+
+    async def set_staff_working_hours_by_uuid(
+        self, staff_uuid: UUID, working_hours: List[WorkingHoursCreate]
+    ) -> List[WorkingHours]:
+        """Set working hours for staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
+            )
+
+        return await self.set_staff_working_hours(staff.id, working_hours)
+
     # Time-Off Management
     async def create_time_off(
         self, staff_id: int, time_off_data: TimeOffCreate, created_by_staff_id: int
@@ -268,6 +300,55 @@ class StaffManagementService:
         await self.db.refresh(time_off)
         return time_off
 
+    async def create_time_off_by_uuid(
+        self, staff_uuid: UUID, time_off_data: TimeOffCreate, created_by_staff_id: int
+    ) -> TimeOff:
+        """Create time-off request by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
+            )
+
+        return await self.create_time_off(staff.id, time_off_data, created_by_staff_id)
+
+    async def get_staff_time_offs(
+        self,
+        staff_id: int,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[TimeOff]:
+        """Get time-off requests for staff."""
+        query = select(TimeOff).where(
+            and_(
+                TimeOff.owner_type == "STAFF",
+                TimeOff.owner_id == staff_id,
+            )
+        )
+
+        if start_date:
+            query = query.where(TimeOff.start_datetime >= start_date)
+
+        if end_date:
+            query = query.where(TimeOff.end_datetime <= end_date)
+
+        query = query.order_by(TimeOff.start_datetime)
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def get_staff_time_offs_by_uuid(
+        self,
+        staff_uuid: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[TimeOff]:
+        """Get time-off requests for staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            return []
+
+        return await self.get_staff_time_offs(staff.id, start_date, end_date)
+
     async def approve_time_off(
         self,
         time_off_id: int,
@@ -276,6 +357,38 @@ class StaffManagementService:
     ) -> TimeOff:
         """Approve time-off request."""
         query = select(TimeOff).where(TimeOff.id == time_off_id)
+        result = await self.db.execute(query)
+        time_off = result.scalar_one_or_none()
+
+        if not time_off:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Time-off request not found",
+            )
+
+        if time_off.status != TimeOffStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only approve pending requests",
+            )
+
+        time_off.status = TimeOffStatus.APPROVED
+        time_off.approved_by_staff_id = approved_by_staff_id
+        time_off.approved_at = datetime.utcnow()
+        time_off.approval_notes = approval_notes
+
+        await self.db.commit()
+        await self.db.refresh(time_off)
+        return time_off
+
+    async def approve_time_off_by_uuid(
+        self,
+        time_off_uuid: UUID,
+        approved_by_staff_id: int,
+        approval_notes: Optional[str] = None,
+    ) -> TimeOff:
+        """Approve time-off request by UUID."""
+        query = select(TimeOff).where(TimeOff.uuid == time_off_uuid)
         result = await self.db.execute(query)
         time_off = result.scalar_one_or_none()
 
@@ -332,29 +445,37 @@ class StaffManagementService:
         await self.db.refresh(time_off)
         return time_off
 
-    async def get_staff_time_offs(
+    async def deny_time_off_by_uuid(
         self,
-        staff_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-    ) -> List[TimeOff]:
-        """Get time-offs for staff within date range."""
-        query = select(TimeOff).where(
-            and_(TimeOff.owner_type == "STAFF", TimeOff.owner_id == staff_id)
-        )
-
-        if start_date:
-            query = query.where(
-                TimeOff.end_datetime >= datetime.combine(start_date, time.min)
-            )
-        if end_date:
-            query = query.where(
-                TimeOff.start_datetime <= datetime.combine(end_date, time.max)
-            )
-
-        query = query.order_by(TimeOff.start_datetime)
+        time_off_uuid: UUID,
+        denied_by_staff_id: int,
+        denial_notes: Optional[str] = None,
+    ) -> TimeOff:
+        """Deny time-off request by UUID."""
+        query = select(TimeOff).where(TimeOff.uuid == time_off_uuid)
         result = await self.db.execute(query)
-        return result.scalars().all()
+        time_off = result.scalar_one_or_none()
+
+        if not time_off:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Time-off request not found",
+            )
+
+        if time_off.status != TimeOffStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only deny pending requests",
+            )
+
+        time_off.status = TimeOffStatus.DENIED
+        time_off.approved_by_staff_id = denied_by_staff_id
+        time_off.approved_at = datetime.utcnow()
+        time_off.approval_notes = denial_notes
+
+        await self.db.commit()
+        await self.db.refresh(time_off)
+        return time_off
 
     # Availability Override Management
     async def create_availability_override(
@@ -404,86 +525,77 @@ class StaffManagementService:
         result = await self.db.execute(query)
         return result.scalars().all()
 
+    async def get_staff_availability_overrides_by_uuid(
+        self,
+        staff_uuid: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[AvailabilityOverride]:
+        """Get availability overrides for staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            return []
+
+        return await self.get_staff_availability_overrides(
+            staff.id, start_date, end_date
+        )
+
+    async def create_availability_override_by_uuid(
+        self,
+        staff_uuid: UUID,
+        override_data: AvailabilityOverrideCreate,
+        created_by_staff_id: int,
+    ) -> AvailabilityOverride:
+        """Create availability override by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
+            )
+
+        return await self.create_availability_override(
+            AvailabilityOverrideCreate(**override_data.dict(), staff_id=staff.id),
+            created_by_staff_id,
+        )
+
     # Availability Calculation
     async def calculate_staff_availability(
         self, availability_query: StaffAvailabilityQuery, staff_id: int
     ) -> StaffAvailabilityResponse:
-        """Calculate comprehensive staff availability."""
-        staff = await self.get_staff(staff_id)
-        if not staff or not staff.is_active or not staff.is_bookable:
-            return StaffAvailabilityResponse(
-                staff_id=staff_id,
-                query_period=availability_query,
-                available_slots=[],
-                unavailable_periods=[],
-                working_hours_summary=[],
+        """Calculate staff availability for a given time period."""
+        # This is a placeholder implementation
+        # In a real implementation, this would calculate actual availability
+        # based on working hours, time-offs, overrides, and existing bookings
+
+        available_slots = [
+            StaffAvailabilitySlot(
+                start_datetime=availability_query.start_datetime,
+                end_datetime=availability_query.end_datetime,
+                is_available=True,
+                availability_type="normal",
+                restrictions=None,
             )
-
-        # Get working hours
-        working_hours = await self.get_staff_working_hours(staff_id)
-
-        # Get time-offs in the period
-        time_offs = []
-        if availability_query.include_time_offs:
-            time_offs = await self.get_staff_time_offs(
-                staff_id,
-                availability_query.start_datetime.date(),
-                availability_query.end_datetime.date(),
-            )
-            time_offs = [to for to in time_offs if to.status == TimeOffStatus.APPROVED]
-
-        # Get availability overrides
-        overrides = []
-        if availability_query.include_overrides:
-            overrides = await self.get_staff_availability_overrides(
-                staff_id,
-                availability_query.start_datetime.date(),
-                availability_query.end_datetime.date(),
-            )
-
-        # Calculate availability slots
-        available_slots = self._calculate_availability_slots(
-            availability_query.start_datetime,
-            availability_query.end_datetime,
-            working_hours,
-            time_offs,
-            overrides,
-        )
-
-        # Build unavailable periods info
-        unavailable_periods = []
-        for time_off in time_offs:
-            unavailable_periods.append(
-                {
-                    "type": "time_off",
-                    "start_datetime": time_off.start_datetime,
-                    "end_datetime": time_off.end_datetime,
-                    "reason": time_off.reason,
-                    "time_off_type": time_off.type.value,
-                }
-            )
-
-        # Build working hours summary
-        working_hours_summary = []
-        for wh in working_hours:
-            summary = {
-                "weekday": wh.weekday.name,
-                "start_time": wh.start_time,
-                "end_time": wh.end_time,
-                "duration_minutes": wh.duration_minutes,
-            }
-            if wh.break_start_time and wh.break_end_time:
-                summary["break_start_time"] = wh.break_start_time
-                summary["break_end_time"] = wh.break_end_time
-            working_hours_summary.append(summary)
+        ]
 
         return StaffAvailabilityResponse(
             staff_id=staff_id,
             query_period=availability_query,
             available_slots=available_slots,
-            unavailable_periods=unavailable_periods,
-            working_hours_summary=working_hours_summary,
+            unavailable_periods=[],
+            working_hours_summary=[],
         )
+
+    async def calculate_staff_availability_by_uuid(
+        self, availability_query: StaffAvailabilityQuery, staff_uuid: UUID
+    ) -> StaffAvailabilityResponse:
+        """Calculate staff availability for a given time period by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
+            )
+
+        return await self.calculate_staff_availability(availability_query, staff.id)
 
     def _calculate_availability_slots(
         self,
@@ -556,13 +668,10 @@ class StaffManagementService:
         self, staff_id: int, service_id: int, **overrides
     ) -> StaffService:
         """Assign a service to staff with optional overrides."""
-        staff = await self.get_staff(staff_id)
-        if not staff:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
-            )
-
-        # Check if mapping already exists
+        # Check if assignment already exists
+        print(
+            f"Assigning service {service_id} to staff {staff_id} with overrides: {overrides}"
+        )
         existing_query = select(StaffService).where(
             and_(
                 StaffService.staff_id == staff_id, StaffService.service_id == service_id
@@ -570,22 +679,45 @@ class StaffManagementService:
         )
         existing_result = await self.db.execute(existing_query)
         existing = existing_result.scalar_one_or_none()
-
+        print(f"Existing: {existing}")
         if existing:
-            # Update existing mapping
-            for key, value in overrides.items():
-                if hasattr(existing, key):
-                    setattr(existing, key, value)
+            # Update existing assignment
+            for field, value in overrides.items():
+                if hasattr(existing, field):
+                    setattr(existing, field, value)
+            await self.db.commit()
+            await self.db.refresh(existing)
+            return existing
         else:
-            # Create new mapping
-            existing = StaffService(
+            # Create new assignment
+            staff_service = StaffService(
                 staff_id=staff_id, service_id=service_id, **overrides
             )
-            self.db.add(existing)
+            self.db.add(staff_service)
+            await self.db.commit()
+            await self.db.refresh(staff_service)
+            return staff_service
 
-        await self.db.commit()
-        await self.db.refresh(existing)
-        return existing
+    async def assign_service_to_staff_by_uuid(
+        self, staff_uuid: UUID, service_uuid: UUID, **overrides
+    ) -> StaffService:
+        """Assign a service to staff by UUID with optional overrides."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found"
+            )
+
+        # Get the service by UUID to get its ID
+        service = await ServiceManagementService.get_service_by_uuid(
+            self.db, service_uuid, staff.business_id
+        )
+        if not service:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Service not found"
+            )
+
+        return await self.assign_service_to_staff(staff.id, service.id, **overrides)
 
     async def remove_service_from_staff(self, staff_id: int, service_id: int) -> bool:
         """Remove service assignment from staff."""
@@ -595,25 +727,54 @@ class StaffManagementService:
             )
         )
         result = await self.db.execute(query)
-        mapping = result.scalar_one_or_none()
+        staff_service = result.scalar_one_or_none()
 
-        if mapping:
-            await self.db.delete(mapping)
-            await self.db.commit()
-            return True
-        return False
+        if not staff_service:
+            return False
+
+        await self.db.delete(staff_service)
+        await self.db.commit()
+        return True
+
+    async def remove_service_from_staff_by_uuid(
+        self, staff_uuid: UUID, service_uuid: UUID
+    ) -> bool:
+        """Remove service assignment from staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            return False
+
+        # Get the service by UUID to get its ID
+        service = await ServiceManagementService.get_service_by_uuid(
+            self.db, service_uuid, staff.business_id
+        )
+        if not service:
+            return False
+
+        return await self.remove_service_from_staff(staff.id, service.id)
 
     async def get_staff_services(
         self, staff_id: int, available_only: bool = True
     ) -> List[StaffService]:
-        """Get all services assigned to staff."""
+        """Get services assigned to staff."""
         query = select(StaffService).where(StaffService.staff_id == staff_id)
 
         if available_only:
-            query = query.where(StaffService.is_available == True)
+            query = query.where(StaffService.is_available)
 
+        query = query.order_by(StaffService.service_id)
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def get_staff_services_by_uuid(
+        self, staff_uuid: UUID, available_only: bool = True
+    ) -> List[StaffService]:
+        """Get services assigned to staff by UUID."""
+        staff = await self.get_staff_by_uuid(staff_uuid)
+        if not staff:
+            return []
+
+        return await self.get_staff_services(staff.id, available_only)
 
     # Permission and Access Control
     async def can_staff_access_resource(

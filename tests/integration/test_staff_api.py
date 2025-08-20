@@ -1,34 +1,22 @@
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, time, date
+import uuid
 
 from app.main import app
 from app.models.staff import Staff, StaffRole
 from app.models.business import Business
-from app.models.working_hours import WorkingHours, WeekDay, OwnerType
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
-from app.models.availability_override import AvailabilityOverride, OverrideType
-from app.models.staff_service import StaffService
 from app.models.service import Service
-from app.schemas.staff import (
-    StaffCreate,
-    StaffUpdate,
-    WorkingHoursCreate,
-    TimeOffCreate,
-    AvailabilityOverrideCreate,
-    StaffAvailabilityQuery,
-    StaffServiceOverride,
-)
 
 
 class TestStaffAPI:
     """Integration tests for Staff API endpoints."""
 
     @pytest.fixture
-    def client(self):
-        """Test client for the FastAPI application."""
-        return TestClient(app)
+    async def client(self):
+        """Async test client for the FastAPI application."""
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            yield ac
 
     @pytest.fixture
     async def test_business(self, db: AsyncSession):
@@ -52,6 +40,7 @@ class TestStaffAPI:
         """Create a test staff member."""
         staff = Staff(
             id=1,
+            uuid=uuid.uuid4(),
             business_id=test_business.id,
             name="Test Staff",
             email="staff@test.com",
@@ -69,6 +58,7 @@ class TestStaffAPI:
         """Create an admin staff member."""
         admin = Staff(
             id=2,
+            uuid=uuid.uuid4(),
             business_id=test_business.id,
             name="Admin Staff",
             email="admin@test.com",
@@ -86,6 +76,7 @@ class TestStaffAPI:
         """Create a test service."""
         service = Service(
             id=1,
+            uuid=uuid.uuid4(),
             business_id=test_business.id,
             name="Haircut",
             description="Basic haircut service",
@@ -100,15 +91,34 @@ class TestStaffAPI:
         await db.refresh(service)
         return service
 
+    @pytest.fixture
+    async def other_staff(self, db: AsyncSession, test_business):
+        """Create another staff member for permission testing."""
+        other_staff = Staff(
+            id=3,
+            uuid=uuid.uuid4(),
+            business_id=test_business.id,
+            name="Other Staff",
+            email="other@test.com",
+            role=StaffRole.STAFF,
+            is_active=True,
+        )
+        db.add(other_staff)
+        await db.commit()
+        await db.refresh(other_staff)
+        return other_staff
+
     @pytest.mark.asyncio
-    async def test_get_staff_list(self, client, test_business, test_staff, admin_staff):
+    async def test_get_staff_list(
+        self, client: AsyncClient, test_business, test_staff, admin_staff
+    ):
         """Test getting the list of staff members."""
         headers = {
             "X-Staff-ID": "2",  # Admin staff
             "X-Business-ID": str(test_business.id),
         }
 
-        response = client.get("/api/v1/staff/", headers=headers)
+        response = await client.get("/api/v1/staff/", headers=headers)
         assert response.status_code == 200
 
         staff_list = response.json()
@@ -117,7 +127,7 @@ class TestStaffAPI:
         assert any(staff["name"] == "Admin Staff" for staff in staff_list)
 
     @pytest.mark.asyncio
-    async def test_create_staff(self, client, test_business, admin_staff):
+    async def test_create_staff(self, client: AsyncClient, test_business, admin_staff):
         """Test creating a new staff member."""
         headers = {
             "X-Staff-ID": "2",  # Admin staff
@@ -133,7 +143,7 @@ class TestStaffAPI:
             "is_active": True,
         }
 
-        response = client.post("/api/v1/staff/", json=staff_data, headers=headers)
+        response = await client.post("/api/v1/staff/", json=staff_data, headers=headers)
         assert response.status_code == 201
 
         created_staff = response.json()
@@ -142,14 +152,16 @@ class TestStaffAPI:
         assert created_staff["role"] == "staff"
 
     @pytest.mark.asyncio
-    async def test_get_staff_by_id(self, client, test_business, test_staff):
-        """Test getting a specific staff member by ID."""
+    async def test_get_staff_by_id(
+        self, client: AsyncClient, test_business, test_staff
+    ):
+        """Test getting a specific staff member by UUID."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
             "X-Business-ID": str(test_business.id),
         }
 
-        response = client.get(f"/api/v1/staff/{test_staff.id}", headers=headers)
+        response = await client.get(f"/api/v1/staff/{test_staff.uuid}", headers=headers)
         assert response.status_code == 200
 
         staff = response.json()
@@ -158,7 +170,7 @@ class TestStaffAPI:
         assert staff["email"] == "staff@test.com"
 
     @pytest.mark.asyncio
-    async def test_update_staff(self, client, test_business, test_staff):
+    async def test_update_staff(self, client: AsyncClient, test_business, test_staff):
         """Test updating a staff member."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
@@ -167,8 +179,8 @@ class TestStaffAPI:
 
         update_data = {"name": "Updated Staff Name", "phone": "987-654-3210"}
 
-        response = client.put(
-            f"/api/v1/staff/{test_staff.id}", json=update_data, headers=headers
+        response = await client.put(
+            f"/api/v1/staff/{test_staff.uuid}", json=update_data, headers=headers
         )
         assert response.status_code == 200
 
@@ -177,7 +189,9 @@ class TestStaffAPI:
         assert updated_staff["phone"] == "987-654-3210"
 
     @pytest.mark.asyncio
-    async def test_set_staff_working_hours(self, client, test_business, test_staff):
+    async def test_set_staff_working_hours(
+        self, client: AsyncClient, test_business, test_staff
+    ):
         """Test setting working hours for a staff member."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
@@ -201,8 +215,8 @@ class TestStaffAPI:
             },
         ]
 
-        response = client.post(
-            f"/api/v1/staff/{test_staff.id}/working-hours",
+        response = await client.post(
+            f"/api/v1/staff/{test_staff.uuid}/working-hours",
             json=working_hours_data,
             headers=headers,
         )
@@ -214,15 +228,17 @@ class TestStaffAPI:
         assert hours[1]["weekday"] == 1  # Tuesday
 
     @pytest.mark.asyncio
-    async def test_get_staff_working_hours(self, client, test_business, test_staff):
+    async def test_get_staff_working_hours(
+        self, client: AsyncClient, test_business, test_staff
+    ):
         """Test getting working hours for a staff member."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
             "X-Business-ID": str(test_business.id),
         }
 
-        response = client.get(
-            f"/api/v1/staff/{test_staff.id}/working-hours", headers=headers
+        response = await client.get(
+            f"/api/v1/staff/{test_staff.uuid}/working-hours", headers=headers
         )
         assert response.status_code == 200
 
@@ -231,7 +247,9 @@ class TestStaffAPI:
         assert isinstance(hours, list)
 
     @pytest.mark.asyncio
-    async def test_create_time_off(self, client, test_business, test_staff):
+    async def test_create_time_off(
+        self, client: AsyncClient, test_business, test_staff
+    ):
         """Test creating a time-off request."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
@@ -246,8 +264,8 @@ class TestStaffAPI:
             "is_all_day": False,
         }
 
-        response = client.post(
-            f"/api/v1/staff/{test_staff.id}/time-off",
+        response = await client.post(
+            f"/api/v1/staff/{test_staff.uuid}/time-off",
             json=time_off_data,
             headers=headers,
         )
@@ -259,7 +277,7 @@ class TestStaffAPI:
 
     @pytest.mark.asyncio
     async def test_approve_time_off(
-        self, client, test_business, test_staff, admin_staff
+        self, client: AsyncClient, test_business, test_staff, admin_staff
     ):
         """Test approving a time-off request."""
         # First create a time-off request
@@ -275,14 +293,15 @@ class TestStaffAPI:
             "reason": "Summer vacation",
         }
 
-        create_response = client.post(
-            f"/api/v1/staff/{test_staff.id}/time-off",
+        create_response = await client.post(
+            f"/api/v1/staff/{test_staff.uuid}/time-off",
             json=time_off_data,
             headers=headers,
         )
         assert create_response.status_code == 201
 
-        time_off_id = create_response.json()["id"]
+        time_off = create_response.json()
+        time_off_uuid = time_off["uuid"]  # Use UUID instead of ID
 
         # Now approve it as admin
         admin_headers = {
@@ -290,8 +309,8 @@ class TestStaffAPI:
             "X-Business-ID": str(test_business.id),
         }
 
-        approve_response = client.post(
-            f"/api/v1/staff/time-off/{time_off_id}/approve",
+        approve_response = await client.post(
+            f"/api/v1/staff/time-off/{time_off_uuid}/approve",
             json={"approval_notes": "Approved"},
             headers=admin_headers,
         )
@@ -302,7 +321,7 @@ class TestStaffAPI:
 
     @pytest.mark.asyncio
     async def test_assign_service_to_staff(
-        self, client, test_business, test_staff, admin_staff, test_service
+        self, client: AsyncClient, test_business, test_staff, admin_staff, test_service
     ):
         """Test assigning a service to a staff member."""
         headers = {
@@ -311,17 +330,18 @@ class TestStaffAPI:
         }
 
         service_override = {
-            "service_id": test_service.id,
+            "service_id": str(test_service.uuid),  # Schema expects UUID
             "override_duration_minutes": 45,
             "override_price": 30.00,
             "expertise_level": "senior",
         }
 
-        response = client.post(
-            f"/api/v1/staff/{test_staff.id}/services",
+        response = await client.post(
+            f"/api/v1/staff/{test_staff.uuid}/services",
             json=service_override,
             headers=headers,
         )
+
         assert response.status_code == 200
 
         result = response.json()
@@ -330,15 +350,17 @@ class TestStaffAPI:
         assert result["service_id"] == test_service.id
 
     @pytest.mark.asyncio
-    async def test_get_staff_services(self, client, test_business, test_staff):
+    async def test_get_staff_services(
+        self, client: AsyncClient, test_business, test_staff
+    ):
         """Test getting services assigned to a staff member."""
         headers = {
             "X-Staff-ID": "1",  # Same staff member
             "X-Business-ID": str(test_business.id),
         }
 
-        response = client.get(
-            f"/api/v1/staff/{test_staff.id}/services", headers=headers
+        response = await client.get(
+            f"/api/v1/staff/{test_staff.uuid}/services", headers=headers
         )
         assert response.status_code == 200
 
@@ -347,7 +369,7 @@ class TestStaffAPI:
 
     @pytest.mark.asyncio
     async def test_calculate_staff_availability(
-        self, client, test_business, test_staff
+        self, client: AsyncClient, test_business, test_staff
     ):
         """Test calculating staff availability."""
         headers = {
@@ -362,8 +384,8 @@ class TestStaffAPI:
             "include_overrides": True,
         }
 
-        response = client.post(
-            f"/api/v1/staff/{test_staff.id}/availability",
+        response = await client.post(
+            f"/api/v1/staff/{test_staff.uuid}/availability",
             json=availability_query,
             headers=headers,
         )
@@ -377,7 +399,7 @@ class TestStaffAPI:
 
     @pytest.mark.asyncio
     async def test_permission_denied_for_unauthorized_access(
-        self, client, test_business, test_staff
+        self, client: AsyncClient, test_business, test_staff, other_staff
     ):
         """Test that unauthorized access is properly denied."""
         # Try to access another staff member's profile
@@ -386,33 +408,28 @@ class TestStaffAPI:
             "X-Business-ID": str(test_business.id),
         }
 
-        # Create another staff member
-        other_staff = Staff(
-            id=3,
-            business_id=test_business.id,
-            name="Other Staff",
-            email="other@test.com",
-            role=StaffRole.STAFF,
-            is_active=True,
-        )
-
         # Try to view other staff's profile (should be denied)
-        response = client.get(f"/api/v1/staff/3", headers=headers)
+        response = await client.get(
+            f"/api/v1/staff/{other_staff.uuid}", headers=headers
+        )
         assert response.status_code == 403
-        assert "Can only view your own staff profile" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "Can only view your own staff profile" in detail
 
     @pytest.mark.asyncio
-    async def test_business_context_validation(self, client, test_staff):
+    async def test_business_context_validation(self, client: AsyncClient, test_staff):
         """Test that business context validation works."""
-        headers = {"X-Staff-ID": "1", "X-Business-ID": "999"}  # Non-existent business
+        # Non-existent business
+        headers = {"X-Staff-ID": "1", "X-Business-ID": "999"}
 
-        response = client.get(f"/api/v1/staff/{test_staff.id}", headers=headers)
+        response = await client.get(f"/api/v1/staff/{test_staff.uuid}", headers=headers)
         assert response.status_code == 404
-        assert "Business not found" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "Business not found" in detail
 
     @pytest.mark.asyncio
     async def test_staff_creation_duplicate_email(
-        self, client, test_business, admin_staff, test_staff
+        self, client: AsyncClient, test_business, admin_staff, test_staff
     ):
         """Test that creating staff with duplicate email is rejected."""
         headers = {
@@ -427,7 +444,7 @@ class TestStaffAPI:
             "role": "staff",
         }
 
-        response = client.post(
+        response = await client.post(
             "/api/v1/staff/", json=duplicate_staff_data, headers=headers
         )
         assert response.status_code == 400

@@ -1,6 +1,6 @@
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from fastapi import status
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -8,12 +8,6 @@ from datetime import datetime
 
 from app.main import app
 from app.models.business import Business
-from app.schemas.business import (
-    BusinessCreate,
-    BusinessUpdate,
-    BusinessBranding,
-    BusinessPolicy,
-)
 
 
 @pytest_asyncio.fixture
@@ -31,6 +25,11 @@ class TestBusinessAPI:
     def client(self):
         """Create test client."""
         return TestClient(app)
+
+    @pytest.fixture
+    def test_uuid(self):
+        """Test UUID for consistent testing."""
+        return "550e8400-e29b-41d4-a716-446655440000"
 
     @pytest.fixture
     def sample_business_data(self):
@@ -60,9 +59,10 @@ class TestBusinessAPI:
         }
 
     @pytest.fixture
-    def sample_business_model(self, sample_business_data):
+    def sample_business_model(self, sample_business_data, test_uuid):
         """Sample business model for testing."""
         business = Business(id=1, **sample_business_data, is_active=True)
+        business.uuid = test_uuid
         # Set datetime fields manually since they're auto-generated in real DB
         business.created_at = datetime(2024, 1, 15, 10, 30, 0)
         business.updated_at = datetime(2024, 1, 15, 10, 30, 0)
@@ -70,13 +70,15 @@ class TestBusinessAPI:
 
     @pytest.mark.asyncio
     async def test_create_business_success(
-        self, async_client, sample_business_data, override_get_db
+        self, async_client, sample_business_data, test_uuid, override_get_db
     ):
         """Test successful business creation."""
         with patch(
             "app.services.business.business_service.create_business"
         ) as mock_create:
+            # Create a proper mock business with all required fields including UUID
             mock_business = Business(id=1, **sample_business_data, is_active=True)
+            mock_business.uuid = test_uuid
             mock_business.created_at = datetime(2024, 1, 15, 10, 30, 0)
             mock_business.updated_at = datetime(2024, 1, 15, 10, 30, 0)
             mock_create.return_value = mock_business
@@ -132,27 +134,36 @@ class TestBusinessAPI:
 
     @pytest.mark.asyncio
     async def test_get_business_success(
-        self, async_client, sample_business_model, override_get_db
+        self, async_client, sample_business_model, test_uuid, override_get_db
     ):
         """Test successful business retrieval."""
-        with patch("app.services.business.business_service.get_business") as mock_get:
+        with patch(
+            "app.services.business.business_service.get_business_by_uuid"
+        ) as mock_get:
             mock_get.return_value = sample_business_model
 
-            response = await async_client.get("/api/v1/business/1")
+            response = await async_client.get(f"/api/v1/business/{test_uuid}")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["id"] == 1
             assert data["name"] == "Test Salon"
-            mock_get.assert_called_once_with(mock_get.call_args[0][0], 1)
+            # Check that the mock was called with the correct arguments
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert str(call_args[0][1]) == test_uuid
 
     @pytest.mark.asyncio
-    async def test_get_business_not_found(self, async_client, override_get_db):
+    async def test_get_business_not_found(
+        self, async_client, test_uuid, override_get_db
+    ):
         """Test business retrieval when business not found."""
-        with patch("app.services.business.business_service.get_business") as mock_get:
+        with patch(
+            "app.services.business.business_service.get_business_by_uuid"
+        ) as mock_get:
             mock_get.return_value = None
 
-            response = await async_client.get("/api/v1/business/999")
+            response = await async_client.get(f"/api/v1/business/{test_uuid}")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"
@@ -199,13 +210,14 @@ class TestBusinessAPI:
 
     @pytest.mark.asyncio
     async def test_update_business_success(
-        self, async_client, sample_business_model, override_get_db
+        self, async_client, sample_business_model, test_uuid, override_get_db
     ):
         """Test successful business update."""
         update_data = {"name": "Updated Salon", "description": "Updated description"}
         # Create updated business properly without SQLAlchemy internal state
         updated_business = Business(
             id=sample_business_model.id,
+            uuid=test_uuid,
             name=update_data.get("name", sample_business_model.name),
             description=update_data.get(
                 "description", sample_business_model.description
@@ -224,11 +236,13 @@ class TestBusinessAPI:
         updated_business.updated_at = datetime(2024, 1, 15, 10, 35, 0)  # Updated time
 
         with patch(
-            "app.services.business.business_service.update_business"
+            "app.services.business.business_service.update_business_by_uuid"
         ) as mock_update:
             mock_update.return_value = updated_business
 
-            response = await async_client.put("/api/v1/business/1", json=update_data)
+            response = await async_client.put(
+                f"/api/v1/business/{test_uuid}", json=update_data
+            )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -237,15 +251,17 @@ class TestBusinessAPI:
             mock_update.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_update_business_not_found(self, async_client, override_get_db):
+    async def test_update_business_not_found(
+        self, async_client, test_uuid, override_get_db
+    ):
         """Test business update when business not found."""
         with patch(
-            "app.services.business.business_service.update_business"
+            "app.services.business.business_service.update_business_by_uuid"
         ) as mock_update:
             mock_update.return_value = None
 
             response = await async_client.put(
-                "/api/v1/business/999", json={"name": "New Name"}
+                f"/api/v1/business/{test_uuid}", json={"name": "New Name"}
             )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -253,16 +269,16 @@ class TestBusinessAPI:
 
     @pytest.mark.asyncio
     async def test_update_business_validation_error(
-        self, async_client, override_get_db
+        self, async_client, test_uuid, override_get_db
     ):
         """Test business update with validation error."""
         with patch(
-            "app.services.business.business_service.update_business"
+            "app.services.business.business_service.update_business_by_uuid"
         ) as mock_update:
             mock_update.side_effect = ValueError("Invalid data")
 
             response = await async_client.put(
-                "/api/v1/business/1", json={"name": "Test"}
+                f"/api/v1/business/{test_uuid}", json={"name": "Test"}
             )
 
             assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -270,78 +286,90 @@ class TestBusinessAPI:
 
     @pytest.mark.asyncio
     async def test_delete_business_soft_delete_success(
-        self, async_client, override_get_db
+        self, async_client, test_uuid, override_get_db
     ):
         """Test successful soft delete of business."""
         with patch(
-            "app.services.business.business_service.delete_business"
+            "app.services.business.business_service.delete_business_by_uuid"
         ) as mock_delete:
             mock_delete.return_value = True
 
-            response = await async_client.delete("/api/v1/business/1?hard_delete=false")
+            response = await async_client.delete(
+                f"/api/v1/business/{test_uuid}?hard_delete=false"
+            )
 
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            mock_delete.assert_called_once_with(
-                mock_delete.call_args[0][0], 1, soft_delete=True
-            )
+            mock_delete.assert_called_once()
+            call_args = mock_delete.call_args
+            assert str(call_args[0][1]) == test_uuid
+            assert call_args[1]["soft_delete"] is True
 
     @pytest.mark.asyncio
     async def test_delete_business_hard_delete_success(
-        self, async_client, override_get_db
+        self, async_client, test_uuid, override_get_db
     ):
         """Test successful hard delete of business."""
         with patch(
-            "app.services.business.business_service.delete_business"
+            "app.services.business.business_service.delete_business_by_uuid"
         ) as mock_delete:
             mock_delete.return_value = True
 
-            response = await async_client.delete("/api/v1/business/1?hard_delete=true")
-
-            assert response.status_code == status.HTTP_204_NO_CONTENT
-            mock_delete.assert_called_once_with(
-                mock_delete.call_args[0][0], 1, soft_delete=False
+            response = await async_client.delete(
+                f"/api/v1/business/{test_uuid}?hard_delete=true"
             )
 
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+            mock_delete.assert_called_once()
+            call_args = mock_delete.call_args
+            assert str(call_args[0][1]) == test_uuid
+            assert call_args[1]["soft_delete"] is False
+
     @pytest.mark.asyncio
-    async def test_delete_business_not_found(self, async_client, override_get_db):
+    async def test_delete_business_not_found(
+        self, async_client, test_uuid, override_get_db
+    ):
         """Test business deletion when business not found."""
         with patch(
-            "app.services.business.business_service.delete_business"
+            "app.services.business.business_service.delete_business_by_uuid"
         ) as mock_delete:
             mock_delete.return_value = False
 
-            response = await async_client.delete("/api/v1/business/999")
+            response = await async_client.delete(f"/api/v1/business/{test_uuid}")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"
 
     @pytest.mark.asyncio
     async def test_activate_business_success(
-        self, async_client, sample_business_model, override_get_db
+        self, async_client, sample_business_model, test_uuid, override_get_db
     ):
         """Test successful business activation."""
         with patch(
-            "app.services.business.business_service.activate_business"
+            "app.services.business.business_service.activate_business_by_uuid"
         ) as mock_activate:
             mock_activate.return_value = sample_business_model
 
-            response = await async_client.post("/api/v1/business/1/activate")
+            response = await async_client.post(f"/api/v1/business/{test_uuid}/activate")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["id"] == 1
             assert data["is_active"] is True
-            mock_activate.assert_called_once_with(mock_activate.call_args[0][0], 1)
+            mock_activate.assert_called_once()
+            call_args = mock_activate.call_args
+            assert str(call_args[0][1]) == test_uuid
 
     @pytest.mark.asyncio
-    async def test_activate_business_not_found(self, async_client, override_get_db):
+    async def test_activate_business_not_found(
+        self, async_client, test_uuid, override_get_db
+    ):
         """Test business activation when business not found."""
         with patch(
-            "app.services.business.business_service.activate_business"
+            "app.services.business.business_service.activate_business_by_uuid"
         ) as mock_activate:
             mock_activate.return_value = None
 
-            response = await async_client.post("/api/v1/business/999/activate")
+            response = await async_client.post(f"/api/v1/business/{test_uuid}/activate")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"

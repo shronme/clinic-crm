@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+import uuid
 from app.core.database import Base
 
 
@@ -11,6 +13,9 @@ class Business(Base):
 
     # Core identity
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
+    )
     name = Column(String(255), nullable=False)
 
     # Business profile
@@ -33,9 +38,7 @@ class Business(Base):
     )  # { primary_color, secondary_color, logo_position, etc. }
 
     # Booking policies
-    policy = Column(
-        JSON, nullable=True
-    )  # { min_lead_time_hours, max_lead_time_days, cancellation_window_hours, deposit_required, no_show_fee, late_arrival_grace_minutes }
+    policy = Column(JSON, nullable=True)  # booking policy configuration
 
     # Business settings
     is_active = Column(Boolean, default=True, nullable=False)

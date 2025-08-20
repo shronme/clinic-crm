@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from datetime import datetime
 from pydantic import ValidationError
 
@@ -198,9 +199,11 @@ class TestBusinessSchemas:
     def test_business_response_schema(self):
         """Test BusinessResponse schema."""
         now = datetime.now()
+        test_uuid = uuid.uuid4()
 
         response = BusinessResponse(
             id=1,
+            uuid=test_uuid,
             name="Test Salon",
             timezone="UTC",
             currency="USD",
@@ -210,6 +213,7 @@ class TestBusinessSchemas:
         )
 
         assert response.id == 1
+        assert response.uuid == test_uuid
         assert response.name == "Test Salon"
         assert response.timezone == "UTC"
         assert response.currency == "USD"

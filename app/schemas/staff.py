@@ -1,5 +1,6 @@
-from datetime import datetime, time, date
+from datetime import datetime, time
 from typing import Optional, List
+from uuid import UUID
 from pydantic import BaseModel, EmailStr, validator, Field
 from app.models.staff import StaffRole
 from app.models.working_hours import WeekDay
@@ -35,6 +36,39 @@ class StaffUpdate(BaseModel):
     display_order: Optional[int] = None
 
 
+class Staff(StaffBase):
+    id: int
+    uuid: UUID
+    business_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StaffSummary(BaseModel):
+    id: int
+    uuid: UUID
+    name: str
+    email: Optional[str] = None
+    role: StaffRole
+    is_bookable: bool
+    is_active: bool
+    display_order: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StaffWithServices(Staff):
+    staff_services: List[dict]
+
+    class Config:
+        from_attributes = True
+
+
 class WorkingHoursBase(BaseModel):
     weekday: WeekDay
     start_time: time
@@ -45,18 +79,18 @@ class WorkingHoursBase(BaseModel):
     effective_from: Optional[datetime] = None
     effective_until: Optional[datetime] = None
 
-    @validator('end_time')
+    @validator("end_time")
     def end_time_after_start_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
-            raise ValueError('End time must be after start time')
+        if "start_time" in values and v <= values["start_time"]:
+            raise ValueError("End time must be after start time")
         return v
 
-    @validator('break_end_time')
+    @validator("break_end_time")
     def break_times_valid(cls, v, values):
-        if v and 'break_start_time' not in values:
-            raise ValueError('Break start time required when break end time is set')
-        if v and 'break_start_time' in values and v <= values['break_start_time']:
-            raise ValueError('Break end time must be after break start time')
+        if v and "break_start_time" not in values:
+            raise ValueError("Break start time required when break end time is set")
+        if v and "break_start_time" in values and v <= values["break_start_time"]:
+            raise ValueError("Break end time must be after break start time")
         return v
 
 
@@ -77,6 +111,7 @@ class WorkingHoursUpdate(BaseModel):
 
 class WorkingHours(WorkingHoursBase):
     id: int
+    uuid: UUID
     owner_type: str
     owner_id: int
     created_at: datetime
@@ -96,10 +131,10 @@ class TimeOffBase(BaseModel):
     is_recurring: bool = False
     recurrence_pattern: Optional[str] = None
 
-    @validator('end_datetime')
+    @validator("end_datetime")
     def end_after_start(cls, v, values):
-        if 'start_datetime' in values and v <= values['start_datetime']:
-            raise ValueError('End datetime must be after start datetime')
+        if "start_datetime" in values and v <= values["start_datetime"]:
+            raise ValueError("End datetime must be after start datetime")
         return v
 
 
@@ -120,6 +155,7 @@ class TimeOffUpdate(BaseModel):
 
 class TimeOff(TimeOffBase):
     id: int
+    uuid: UUID
     owner_type: str
     owner_id: int
     status: TimeOffStatus
@@ -144,16 +180,16 @@ class AvailabilityOverrideBase(BaseModel):
     allow_new_bookings: bool = True
     max_concurrent_appointments: Optional[int] = None
 
-    @validator('end_datetime')
+    @validator("end_datetime")
     def end_after_start(cls, v, values):
-        if 'start_datetime' in values and v <= values['start_datetime']:
-            raise ValueError('End datetime must be after start datetime')
+        if "start_datetime" in values and v <= values["start_datetime"]:
+            raise ValueError("End datetime must be after start datetime")
         return v
 
-    @validator('max_concurrent_appointments')
+    @validator("max_concurrent_appointments")
     def max_appointments_positive(cls, v):
         if v is not None and v < 1:
-            raise ValueError('Max concurrent appointments must be positive')
+            raise ValueError("Max concurrent appointments must be positive")
         return v
 
 
@@ -174,6 +210,7 @@ class AvailabilityOverrideUpdate(BaseModel):
 
 class AvailabilityOverride(AvailabilityOverrideBase):
     id: int
+    uuid: UUID
     staff_id: int
     created_by_staff_id: int
     created_at: datetime
@@ -184,7 +221,7 @@ class AvailabilityOverride(AvailabilityOverrideBase):
 
 
 class StaffServiceOverride(BaseModel):
-    service_id: int
+    service_id: UUID
     override_duration_minutes: Optional[int] = None
     override_price: Optional[float] = None
     override_buffer_before_minutes: Optional[int] = None
@@ -194,51 +231,26 @@ class StaffServiceOverride(BaseModel):
     notes: Optional[str] = None
     requires_approval: bool = False
 
-    @validator('override_duration_minutes', 'override_buffer_before_minutes', 'override_buffer_after_minutes')
+    @validator(
+        "override_duration_minutes",
+        "override_buffer_before_minutes",
+        "override_buffer_after_minutes",
+    )
     def positive_minutes(cls, v):
         if v is not None and v < 0:
-            raise ValueError('Minutes must be non-negative')
+            raise ValueError("Minutes must be non-negative")
         return v
 
-    @validator('override_price')
+    @validator("override_price")
     def positive_price(cls, v):
         if v is not None and v < 0:
-            raise ValueError('Price must be non-negative')
+            raise ValueError("Price must be non-negative")
         return v
-
-
-class Staff(StaffBase):
-    id: int
-    business_id: int
-    created_at: datetime
-    updated_at: datetime
-    working_hours: List[WorkingHours] = []
-    time_offs: List[TimeOff] = []
-    availability_overrides: List[AvailabilityOverride] = []
-
-    class Config:
-        from_attributes = True
-
-
-class StaffWithServices(Staff):
-    staff_services: List[dict] = []  # Will be populated with service details
-
-
-class StaffSummary(BaseModel):
-    """Lightweight staff summary for listings"""
-    id: int
-    name: str
-    role: StaffRole
-    is_bookable: bool
-    is_active: bool
-    avatar_url: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class StaffAvailabilityQuery(BaseModel):
     """Query parameters for staff availability checks"""
+
     start_datetime: datetime
     end_datetime: datetime
     service_ids: Optional[List[int]] = None
@@ -248,6 +260,7 @@ class StaffAvailabilityQuery(BaseModel):
 
 class StaffAvailabilitySlot(BaseModel):
     """Available time slot for staff"""
+
     start_datetime: datetime
     end_datetime: datetime
     is_available: bool
@@ -257,6 +270,7 @@ class StaffAvailabilitySlot(BaseModel):
 
 class StaffAvailabilityResponse(BaseModel):
     """Staff availability response"""
+
     staff_id: int
     query_period: StaffAvailabilityQuery
     available_slots: List[StaffAvailabilitySlot]

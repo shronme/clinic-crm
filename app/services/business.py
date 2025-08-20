@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.exc import IntegrityError
 import structlog
+from uuid import UUID
 
 from app.models.business import Business
 from app.schemas.business import BusinessCreate, BusinessUpdate
@@ -42,6 +43,7 @@ class BusinessService:
             logger.info(
                 "Business created successfully",
                 business_id=business.id,
+                business_uuid=business.uuid,
                 business_name=business.name,
             )
             return business
@@ -60,7 +62,7 @@ class BusinessService:
     async def get_business(
         self, db: AsyncSession, business_id: int
     ) -> Optional[Business]:
-        """Get business by ID."""
+        """Get business by ID (legacy method)."""
         try:
             result = await db.execute(
                 select(Business).where(Business.id == business_id)
@@ -75,6 +77,27 @@ class BusinessService:
         except Exception as e:
             logger.error(
                 "Failed to get business", business_id=business_id, error=str(e)
+            )
+            raise
+
+    async def get_business_by_uuid(
+        self, db: AsyncSession, business_uuid: UUID
+    ) -> Optional[Business]:
+        """Get business by UUID."""
+        try:
+            result = await db.execute(
+                select(Business).where(Business.uuid == business_uuid)
+            )
+            business = result.scalar_one_or_none()
+
+            if not business:
+                logger.warning("Business not found", business_uuid=business_uuid)
+
+            return business
+
+        except Exception as e:
+            logger.error(
+                "Failed to get business", business_uuid=business_uuid, error=str(e)
             )
             raise
 
@@ -109,7 +132,7 @@ class BusinessService:
     async def update_business(
         self, db: AsyncSession, business_id: int, business_update: BusinessUpdate
     ) -> Optional[Business]:
-        """Update business information."""
+        """Update business information by ID (legacy method)."""
         try:
             # Get existing business
             business = await self.get_business(db, business_id)
@@ -165,10 +188,69 @@ class BusinessService:
             )
             raise
 
+    async def update_business_by_uuid(
+        self, db: AsyncSession, business_uuid: UUID, business_update: BusinessUpdate
+    ) -> Optional[Business]:
+        """Update business information by UUID."""
+        try:
+            # Get existing business
+            business = await self.get_business_by_uuid(db, business_uuid)
+            if not business:
+                return None
+
+            # Prepare update data
+            update_data = business_update.dict(exclude_unset=True)
+
+            # Convert nested models to JSON
+            if "branding" in update_data and update_data["branding"]:
+                update_data["branding"] = (
+                    update_data["branding"].dict()
+                    if hasattr(update_data["branding"], "dict")
+                    else update_data["branding"]
+                )
+            if "policy" in update_data and update_data["policy"]:
+                update_data["policy"] = (
+                    update_data["policy"].dict()
+                    if hasattr(update_data["policy"], "dict")
+                    else update_data["policy"]
+                )
+
+            if update_data:
+                await db.execute(
+                    update(Business)
+                    .where(Business.uuid == business_uuid)
+                    .values(**update_data)
+                )
+                await db.commit()
+                await db.refresh(business)
+
+                logger.info(
+                    "Business updated successfully",
+                    business_uuid=business_uuid,
+                    updated_fields=list(update_data.keys()),
+                )
+
+            return business
+
+        except IntegrityError as e:
+            await db.rollback()
+            logger.error(
+                "Failed to update business due to integrity constraint",
+                business_uuid=business_uuid,
+                error=str(e),
+            )
+            raise ValueError("Update failed due to constraint violation")
+        except Exception as e:
+            await db.rollback()
+            logger.error(
+                "Failed to update business", business_uuid=business_uuid, error=str(e)
+            )
+            raise
+
     async def delete_business(
         self, db: AsyncSession, business_id: int, soft_delete: bool = True
     ) -> bool:
-        """Delete business (soft delete by default)."""
+        """Delete business by ID (legacy method)."""
         try:
             business = await self.get_business(db, business_id)
             if not business:
@@ -197,10 +279,42 @@ class BusinessService:
             )
             raise
 
+    async def delete_business_by_uuid(
+        self, db: AsyncSession, business_uuid: UUID, soft_delete: bool = True
+    ) -> bool:
+        """Delete business by UUID."""
+        try:
+            business = await self.get_business_by_uuid(db, business_uuid)
+            if not business:
+                return False
+
+            if soft_delete:
+                # Soft delete - mark as inactive
+                await db.execute(
+                    update(Business)
+                    .where(Business.uuid == business_uuid)
+                    .values(is_active=False)
+                )
+                logger.info("Business soft deleted", business_uuid=business_uuid)
+            else:
+                # Hard delete
+                await db.execute(delete(Business).where(Business.uuid == business_uuid))
+                logger.info("Business hard deleted", business_uuid=business_uuid)
+
+            await db.commit()
+            return True
+
+        except Exception as e:
+            await db.rollback()
+            logger.error(
+                "Failed to delete business", business_uuid=business_uuid, error=str(e)
+            )
+            raise
+
     async def activate_business(
         self, db: AsyncSession, business_id: int
     ) -> Optional[Business]:
-        """Reactivate a soft-deleted business."""
+        """Reactivate a soft-deleted business by ID (legacy method)."""
         try:
             business = await self.get_business(db, business_id)
             if not business:
@@ -225,6 +339,39 @@ class BusinessService:
             await db.rollback()
             logger.error(
                 "Failed to activate business", business_id=business_id, error=str(e)
+            )
+            raise
+
+    async def activate_business_by_uuid(
+        self, db: AsyncSession, business_uuid: UUID
+    ) -> Optional[Business]:
+        """Reactivate a soft-deleted business by UUID."""
+        try:
+            business = await self.get_business_by_uuid(db, business_uuid)
+            if not business:
+                return None
+
+            if business.is_active:
+                logger.warning(
+                    "Business is already active", business_uuid=business_uuid
+                )
+                return business
+
+            await db.execute(
+                update(Business)
+                .where(Business.uuid == business_uuid)
+                .values(is_active=True)
+            )
+            await db.commit()
+            await db.refresh(business)
+
+            logger.info("Business reactivated", business_uuid=business_uuid)
+            return business
+
+        except Exception as e:
+            await db.rollback()
+            logger.error(
+                "Failed to activate business", business_uuid=business_uuid, error=str(e)
             )
             raise
 

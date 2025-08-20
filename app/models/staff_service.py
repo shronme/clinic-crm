@@ -8,9 +8,11 @@ from sqlalchemy import (
     ForeignKey,
     Numeric,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+import uuid
 
 
 class StaffService(Base):
@@ -20,6 +22,9 @@ class StaffService(Base):
 
     # Core identity
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
+    )
     staff_id = Column(Integer, ForeignKey("staff.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
 
@@ -89,4 +94,7 @@ class StaffService(Base):
         )
 
     def __repr__(self):
-        return f"<StaffService(id={self.id}, staff_id={self.staff_id}, service_id={self.service_id}, available={self.is_available})>"
+        return (
+            f"<StaffService(id={self.id}, staff_id={self.staff_id}, "
+            f"service_id={self.service_id}, available={self.is_available})>"
+        )
