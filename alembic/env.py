@@ -76,6 +76,14 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Override database URL from environment variable if available
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        # Convert asyncpg URL to regular postgresql URL for alembic
+        if database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+        config.set_main_option("sqlalchemy.url", database_url)
+    
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

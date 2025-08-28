@@ -16,34 +16,34 @@ class TestStaffModel:
             name="John Doe",
             email="john@example.com",
             phone="123-456-7890",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
             is_bookable=True,
             is_active=True,
         )
 
         assert staff.name == "John Doe"
         assert staff.email == "john@example.com"
-        assert staff.role == StaffRole.STAFF
+        assert staff.role == StaffRole.STAFF.value
         assert staff.is_bookable is True
         assert staff.is_active is True
 
     def test_staff_repr(self):
         """Test staff string representation."""
         staff = Staff(
-            id=1, name="Jane Smith", role=StaffRole.OWNER_ADMIN, is_bookable=False
+            id=1, name="Jane Smith", role=StaffRole.OWNER_ADMIN.value, is_bookable=False
         )
 
         repr_str = repr(staff)
 
         assert "Jane Smith" in repr_str
-        assert "owner_admin" in repr_str
+        assert "OWNER_ADMIN" in repr_str
         assert "bookable=False" in repr_str
 
     def test_staff_role_enum(self):
         """Test staff role enumeration."""
-        assert StaffRole.OWNER_ADMIN.value == "owner_admin"
-        assert StaffRole.STAFF.value == "staff"
-        assert StaffRole.FRONT_DESK.value == "front_desk"
+        assert StaffRole.OWNER_ADMIN.value == "OWNER_ADMIN"
+        assert StaffRole.STAFF.value == "STAFF"
+        assert StaffRole.FRONT_DESK.value == "FRONT_DESK"
 
 
 class TestWorkingHoursModel:
@@ -51,16 +51,16 @@ class TestWorkingHoursModel:
         """Test working hours model creation."""
         working_hours = WorkingHours(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             is_active=True,
         )
 
-        assert working_hours.owner_type == OwnerType.STAFF
-        assert working_hours.weekday == WeekDay.MONDAY
+        assert working_hours.owner_type == OwnerType.STAFF.value
+        assert working_hours.weekday == "MONDAY"
         assert working_hours.start_time == time(9, 0)
         assert working_hours.end_time == time(17, 0)
         assert working_hours.is_active is True
@@ -69,9 +69,9 @@ class TestWorkingHoursModel:
         """Test working hours with break configuration."""
         working_hours = WorkingHours(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.TUESDAY,
+            weekday="TUESDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),
@@ -85,39 +85,39 @@ class TestWorkingHoursModel:
     def test_duration_minutes_no_break(self):
         """Test duration calculation without break."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
         )
 
-        duration = working_hours.duration_minutes
+        duration = working_hours.duration_minutes()
 
         assert duration == 480  # 8 hours * 60 minutes
 
     def test_duration_minutes_with_break(self):
         """Test duration calculation with break."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),
             break_end_time=time(13, 0),
         )
 
-        duration = working_hours.duration_minutes
+        duration = working_hours.duration_minutes()
 
         assert duration == 420  # 8 hours - 1 hour break = 7 hours * 60 minutes
 
     def test_is_time_available_within_hours(self):
         """Test time availability check within working hours."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             is_active=True,
@@ -130,9 +130,9 @@ class TestWorkingHoursModel:
     def test_is_time_available_outside_hours(self):
         """Test time availability check outside working hours."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             is_active=True,
@@ -145,9 +145,9 @@ class TestWorkingHoursModel:
     def test_is_time_available_during_break(self):
         """Test time availability check during break time."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),
@@ -162,9 +162,9 @@ class TestWorkingHoursModel:
     def test_is_time_available_inactive_hours(self):
         """Test time availability check for inactive hours."""
         working_hours = WorkingHours(
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             is_active=False,  # Inactive
@@ -178,9 +178,9 @@ class TestWorkingHoursModel:
         """Test working hours string representation."""
         working_hours = WorkingHours(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            weekday=WeekDay.MONDAY,
+            weekday="MONDAY",
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),
@@ -199,19 +199,19 @@ class TestTimeOffModel:
         """Test time-off model creation."""
         time_off = TimeOff(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            type=TimeOffType.VACATION,
+            type=TimeOffType.VACATION.value,
             reason="Summer vacation",
-            status=TimeOffStatus.PENDING,
+            status=TimeOffStatus.PENDING.value,
         )
 
-        assert time_off.owner_type == OwnerType.STAFF
-        assert time_off.type == TimeOffType.VACATION
+        assert time_off.owner_type == OwnerType.STAFF.value
+        assert time_off.type == TimeOffType.VACATION.value
         assert time_off.reason == "Summer vacation"
-        assert time_off.status == TimeOffStatus.PENDING
+        assert time_off.status == TimeOffStatus.PENDING.value
 
     def test_duration_hours(self):
         """Test time-off duration calculation in hours."""
@@ -240,7 +240,7 @@ class TestTimeOffModel:
         time_off = TimeOff(
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.APPROVED,
+            status=TimeOffStatus.APPROVED.value,
         )
 
         # Test overlapping period
@@ -255,7 +255,7 @@ class TestTimeOffModel:
         time_off = TimeOff(
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.APPROVED,
+            status=TimeOffStatus.APPROVED.value,
         )
 
         # Test non-overlapping period
@@ -270,7 +270,7 @@ class TestTimeOffModel:
         time_off = TimeOff(
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.PENDING,  # Not approved
+            status=TimeOffStatus.PENDING.value,  # Not approved
         )
 
         # Even if periods overlap, should return False for non-approved
@@ -285,7 +285,7 @@ class TestTimeOffModel:
         time_off = TimeOff(
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.APPROVED,
+            status=TimeOffStatus.APPROVED.value,
         )
 
         check_datetime = datetime(2024, 6, 2, 14, 0)
@@ -297,7 +297,7 @@ class TestTimeOffModel:
         time_off = TimeOff(
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.APPROVED,
+            status=TimeOffStatus.APPROVED.value,
         )
 
         check_datetime = datetime(2024, 6, 5, 14, 0)  # After time-off period
@@ -307,25 +307,27 @@ class TestTimeOffModel:
     def test_can_be_modified_by_owner_pending(self):
         """Test modification permission for owner with pending status."""
         time_off = TimeOff(
-            owner_type=OwnerType.STAFF, owner_id=1, status=TimeOffStatus.PENDING
+            owner_type=OwnerType.STAFF.value,
+            owner_id=1,
+            status=TimeOffStatus.PENDING.value,  # Use .value to get string
         )
 
-        print(
-            f"Debug: owner_type={time_off.owner_type}, owner_id={time_off.owner_id}, status={time_off.status}"
+        can_modify = time_off.can_be_modified_by(
+            staff_id=1, staff_role=StaffRole.STAFF.value
         )
-        can_modify = time_off.can_be_modified_by(staff_id=1, staff_role=StaffRole.STAFF)
-        print(f"Debug: can_modify result={can_modify}")
 
         assert can_modify is True
 
     def test_can_be_modified_by_admin(self):
         """Test modification permission for admin."""
         time_off = TimeOff(
-            owner_type=OwnerType.STAFF, owner_id=1, status=TimeOffStatus.APPROVED
+            owner_type=OwnerType.STAFF.value,
+            owner_id=1,
+            status=TimeOffStatus.APPROVED.value,
         )
 
         can_modify = time_off.can_be_modified_by(
-            staff_id=2, staff_role=StaffRole.OWNER_ADMIN
+            staff_id=2, staff_role=StaffRole.OWNER_ADMIN.value
         )
 
         assert can_modify is True
@@ -333,10 +335,14 @@ class TestTimeOffModel:
     def test_can_be_modified_by_other_staff(self):
         """Test modification permission denied for other staff."""
         time_off = TimeOff(
-            owner_type=OwnerType.STAFF, owner_id=1, status=TimeOffStatus.PENDING
+            owner_type=OwnerType.STAFF.value,
+            owner_id=1,
+            status=TimeOffStatus.PENDING.value,
         )
 
-        can_modify = time_off.can_be_modified_by(staff_id=2, staff_role=StaffRole.STAFF)
+        can_modify = time_off.can_be_modified_by(
+            staff_id=2, staff_role=StaffRole.STAFF.value
+        )
 
         assert can_modify is False
 
@@ -344,18 +350,18 @@ class TestTimeOffModel:
         """Test time-off string representation."""
         time_off = TimeOff(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
-            type=TimeOffType.VACATION,
-            status=TimeOffStatus.PENDING,
+            type=TimeOffType.VACATION.value,
+            status=TimeOffStatus.PENDING.value,
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
         )
 
         repr_str = repr(time_off)
 
-        assert "vacation" in repr_str
-        assert "pending" in repr_str
+        assert "VACATION" in repr_str
+        assert "PENDING" in repr_str
         assert "2024-06-01 - 2024-06-03" in repr_str
 
 
@@ -551,6 +557,6 @@ class TestAvailabilityOverrideModel:
 
         repr_str = repr(override)
 
-        assert "unavailable" in repr_str
+        assert "UNAVAILABLE" in repr_str
         assert "2024-06-01 - 2024-06-01" in repr_str
         assert "active=True" in repr_str

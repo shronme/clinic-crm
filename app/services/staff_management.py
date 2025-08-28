@@ -51,7 +51,11 @@ class StaffManagementService:
                     detail="Email already exists for this business",
                 )
 
-        staff = Staff(**staff_data.dict())
+        staff_dict = staff_data.model_dump()
+        # Convert enum values to their string representation
+        if 'role' in staff_dict and hasattr(staff_dict['role'], 'value'):
+            staff_dict['role'] = staff_dict['role'].value
+        staff = Staff(**staff_dict)
         self.db.add(staff)
         await self.db.commit()
         await self.db.refresh(staff)
@@ -184,7 +188,7 @@ class StaffManagementService:
         # Remove existing working hours
         delete_query = select(WorkingHours).where(
             and_(
-                WorkingHours.owner_type == OwnerType.STAFF,
+                WorkingHours.owner_type == OwnerType.STAFF.value,
                 WorkingHours.owner_id == staff_id,
             )
         )
@@ -197,8 +201,12 @@ class StaffManagementService:
         # Add new working hours
         new_hours = []
         for hours_data in working_hours:
+            hours_dict = hours_data.model_dump()
+            # Convert enum values to their string representation for database storage
+            if 'weekday' in hours_dict and hasattr(hours_dict['weekday'], 'value'):
+                hours_dict['weekday'] = str(hours_dict['weekday'].value)
             hours = WorkingHours(
-                owner_type=OwnerType.STAFF, owner_id=staff_id, **hours_data.dict()
+                owner_type=OwnerType.STAFF.value, owner_id=staff_id, **hours_dict
             )
             self.db.add(hours)
             new_hours.append(hours)
@@ -206,6 +214,17 @@ class StaffManagementService:
         await self.db.commit()
         for hours in new_hours:
             await self.db.refresh(hours)
+
+        # Convert weekday strings back to WeekDay enums for response serialization
+        from app.models.working_hours import WeekDay
+        for hours in new_hours:
+            if hasattr(hours, 'weekday') and isinstance(hours.weekday, str):
+                try:
+                    # Convert string weekday ('0', '1', etc.) back to WeekDay enum
+                    hours.weekday = WeekDay(int(hours.weekday))
+                except (ValueError, TypeError):
+                    # If conversion fails, keep as string
+                    pass
 
         return new_hours
 
@@ -215,7 +234,7 @@ class StaffManagementService:
         """Get working hours for staff."""
         query = select(WorkingHours).where(
             and_(
-                WorkingHours.owner_type == OwnerType.STAFF,
+                WorkingHours.owner_type == OwnerType.STAFF.value,
                 WorkingHours.owner_id == staff_id,
             )
         )
@@ -265,7 +284,7 @@ class StaffManagementService:
             and_(
                 TimeOff.owner_type == "STAFF",
                 TimeOff.owner_id == staff_id,
-                TimeOff.status.in_([TimeOffStatus.PENDING, TimeOffStatus.APPROVED]),
+                TimeOff.status.in_([TimeOffStatus.PENDING.value, TimeOffStatus.APPROVED.value]),
                 or_(
                     and_(
                         TimeOff.start_datetime <= time_off_data.start_datetime,
@@ -292,8 +311,12 @@ class StaffManagementService:
                 detail="Time-off period overlaps with existing request",
             )
 
+        time_off_dict = time_off_data.model_dump()
+        # Convert enum values to their string representation for database storage
+        if 'type' in time_off_dict and hasattr(time_off_dict['type'], 'value'):
+            time_off_dict['type'] = time_off_dict['type'].value
         time_off = TimeOff(
-            owner_type="STAFF", owner_id=staff_id, **time_off_data.dict()
+            owner_type="STAFF", owner_id=staff_id, **time_off_dict
         )
         self.db.add(time_off)
         await self.db.commit()
@@ -366,13 +389,13 @@ class StaffManagementService:
                 detail="Time-off request not found",
             )
 
-        if time_off.status != TimeOffStatus.PENDING:
+        if time_off.status != TimeOffStatus.PENDING.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only approve pending requests",
             )
 
-        time_off.status = TimeOffStatus.APPROVED
+        time_off.status = TimeOffStatus.APPROVED.value
         time_off.approved_by_staff_id = approved_by_staff_id
         time_off.approved_at = datetime.utcnow()
         time_off.approval_notes = approval_notes
@@ -398,13 +421,13 @@ class StaffManagementService:
                 detail="Time-off request not found",
             )
 
-        if time_off.status != TimeOffStatus.PENDING:
+        if time_off.status != TimeOffStatus.PENDING.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only approve pending requests",
             )
 
-        time_off.status = TimeOffStatus.APPROVED
+        time_off.status = TimeOffStatus.APPROVED.value
         time_off.approved_by_staff_id = approved_by_staff_id
         time_off.approved_at = datetime.utcnow()
         time_off.approval_notes = approval_notes
@@ -430,7 +453,7 @@ class StaffManagementService:
                 detail="Time-off request not found",
             )
 
-        if time_off.status != TimeOffStatus.PENDING:
+        if time_off.status != TimeOffStatus.PENDING.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only deny pending requests",
@@ -462,7 +485,7 @@ class StaffManagementService:
                 detail="Time-off request not found",
             )
 
-        if time_off.status != TimeOffStatus.PENDING:
+        if time_off.status != TimeOffStatus.PENDING.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only deny pending requests",
@@ -489,7 +512,7 @@ class StaffManagementService:
             )
 
         override = AvailabilityOverride(
-            **override_data.dict(), created_by_staff_id=created_by_staff_id
+            **override_data.model_dump(), created_by_staff_id=created_by_staff_id
         )
         self.db.add(override)
         await self.db.commit()
@@ -554,7 +577,7 @@ class StaffManagementService:
             )
 
         return await self.create_availability_override(
-            AvailabilityOverrideCreate(**override_data.dict(), staff_id=staff.id),
+            AvailabilityOverrideCreate(**override_data.model_dump(), staff_id=staff.id),
             created_by_staff_id,
         )
 
@@ -786,7 +809,7 @@ class StaffManagementService:
             return False
 
         # Owner/Admin can access everything in their business
-        if staff.role == StaffRole.OWNER_ADMIN:
+        if staff.role == StaffRole.OWNER_ADMIN.value:
             return True
 
         # Staff can access their own resources

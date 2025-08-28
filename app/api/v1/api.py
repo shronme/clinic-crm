@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     services,
     customers,
     appointments,
+    scheduling,
     public,
 )
 
@@ -31,6 +32,9 @@ api_router.include_router(customers.router, prefix="/customers", tags=["customer
 api_router.include_router(
     appointments.router, prefix="/appointments", tags=["appointments"]
 )
+
+# Scheduling endpoints
+api_router.include_router(scheduling.router, prefix="/scheduling", tags=["scheduling"])
 
 # Public booking endpoints (customer-facing)
 api_router.include_router(public.router, prefix="/public", tags=["public"])

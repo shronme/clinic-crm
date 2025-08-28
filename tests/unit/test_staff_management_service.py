@@ -39,7 +39,7 @@ class TestStaffManagementService:
             business_id=1,
             name="Test Staff",
             email="staff@test.com",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
             is_bookable=True,
             is_active=True,
         )
@@ -49,7 +49,7 @@ class TestStaffManagementService:
             business_id=1,
             name="Admin Staff",
             email="admin@test.com",
-            role=StaffRole.OWNER_ADMIN,
+            role=StaffRole.OWNER_ADMIN.value,
             is_bookable=False,
             is_active=True,
         )
@@ -63,7 +63,7 @@ class TestStaffManagementService:
             business_id=1,
             name="New Staff",
             email="newstaff@test.com",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
         )
 
         # Mock database operations using patch
@@ -92,7 +92,7 @@ class TestStaffManagementService:
                 business_id=1,
                 name="New Staff",
                 email="newstaff@test.com",
-                role=StaffRole.STAFF,
+                role=StaffRole.STAFF.value,
                 is_active=True,
                 is_bookable=True,
             )
@@ -104,7 +104,7 @@ class TestStaffManagementService:
 
                 assert result.name == "New Staff"
                 assert result.email == "newstaff@test.com"
-                assert result.role == StaffRole.STAFF
+                assert result.role == StaffRole.STAFF.value
                 mock_db_session.add.assert_called_once()
                 mock_db_session.commit.assert_called_once()
                 mock_get_staff.assert_called_once_with(1, 1)
@@ -118,7 +118,7 @@ class TestStaffManagementService:
             business_id=1,
             name="New Staff",
             email="existing@test.com",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
         )
 
         # Mock existing staff with same email - properly chain the mock calls
@@ -228,10 +228,12 @@ class TestStaffManagementService:
 
         working_hours = [
             WorkingHoursCreate(
-                weekday=WeekDay.MONDAY, start_time=time(9, 0), end_time=time(17, 0)
+                weekday=WeekDay.MONDAY.value,
+                start_time=time(9, 0),
+                end_time=time(17, 0),
             ),
             WorkingHoursCreate(
-                weekday=WeekDay.TUESDAY,
+                weekday=WeekDay.TUESDAY.value,
                 start_time=time(9, 0),
                 end_time=time(17, 0),
                 break_start_time=time(12, 0),
@@ -296,7 +298,7 @@ class TestStaffManagementService:
             staff_id=1, time_off_data=time_off_data, created_by_staff_id=1
         )
 
-        assert result.type == TimeOffType.VACATION
+        assert result.type == TimeOffType.VACATION.value
         assert result.reason == "Summer vacation"
 
     @pytest.mark.asyncio
@@ -316,11 +318,11 @@ class TestStaffManagementService:
 
         existing_time_off = TimeOff(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
             start_datetime=datetime(2024, 6, 2, 9, 0),
             end_datetime=datetime(2024, 6, 4, 17, 0),
-            status=TimeOffStatus.APPROVED,
+            status=TimeOffStatus.APPROVED.value,
         )
         mock_execute_overlap = AsyncMock()
         mock_execute_overlap.scalar_one_or_none.return_value = existing_time_off
@@ -343,11 +345,11 @@ class TestStaffManagementService:
 
         time_off = TimeOff(
             id=1,
-            owner_type=OwnerType.STAFF,
+            owner_type=OwnerType.STAFF.value,
             owner_id=1,
             start_datetime=datetime(2024, 6, 1, 9, 0),
             end_datetime=datetime(2024, 6, 3, 17, 0),
-            status=TimeOffStatus.PENDING,
+            status=TimeOffStatus.PENDING.value,
         )
 
         # Mock query result - properly chain the mock calls
@@ -362,7 +364,7 @@ class TestStaffManagementService:
             time_off_id=1, approved_by_staff_id=2, approval_notes="Approved"
         )
 
-        assert result.status == TimeOffStatus.APPROVED
+        assert result.status == TimeOffStatus.APPROVED.value
         assert result.approved_by_staff_id == 2
         assert result.approval_notes == "Approved"
         assert result.approved_at is not None
@@ -372,7 +374,9 @@ class TestStaffManagementService:
         """Test time-off approval when not in pending status."""
         service = StaffManagementService(mock_db_session)
 
-        time_off = TimeOff(id=1, status=TimeOffStatus.APPROVED)  # Already approved
+        time_off = TimeOff(
+            id=1, status=TimeOffStatus.APPROVED.value
+        )  # Already approved
 
         # Mock query result - properly chain the mock calls
         mock_execute = Mock()

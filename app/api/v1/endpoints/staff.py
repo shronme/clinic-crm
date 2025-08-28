@@ -44,9 +44,9 @@ async def get_staff(
     """
     # Check permissions - only staff members can view staff list
     if current_staff.role not in [
-        StaffRole.OWNER_ADMIN,
-        StaffRole.STAFF,
-        StaffRole.FRONT_DESK,
+        StaffRole.OWNER_ADMIN.value,
+        StaffRole.STAFF.value,
+        StaffRole.FRONT_DESK.value,
     ]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -74,7 +74,7 @@ async def create_staff(
     - Returns created staff member
     """
     # Check permissions - only owners/admins can create staff
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can create staff members",
@@ -117,7 +117,7 @@ async def get_staff_by_uuid(
     """
     # Check permissions - staff can only view their own profile unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -155,7 +155,7 @@ async def update_staff(
     """
     # Check permissions - staff can only update their own profile unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -166,7 +166,7 @@ async def update_staff(
     # Additional permission check for role changes
     if (
         staff_data.role
-        and current_staff.role not in [StaffRole.OWNER_ADMIN]
+        and current_staff.role not in [StaffRole.OWNER_ADMIN.value]
         and staff_data.role != current_staff.role
     ):
         raise HTTPException(
@@ -201,7 +201,7 @@ async def delete_staff(
     - Returns no content on success
     """
     # Check permissions - only owners/admins can delete staff
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can delete staff members",
@@ -243,7 +243,7 @@ async def set_staff_working_hours(
     """
     # Check permissions - staff can only set their own hours unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -281,7 +281,7 @@ async def get_staff_working_hours(
     """
     # Check permissions - staff can view their own hours, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -318,7 +318,7 @@ async def create_time_off(
     """
     # Check permissions - staff can only create their own time-off unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -360,7 +360,7 @@ async def get_staff_time_offs(
     """
     # Check permissions - staff can view their own time-offs, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -415,7 +415,7 @@ async def approve_time_off(
     - Returns approved time-off request
     """
     # Check permissions - only owners/admins can approve time-off
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can approve time-off requests",
@@ -454,7 +454,7 @@ async def deny_time_off(
     - Returns denied time-off request
     """
     # Check permissions - only owners/admins can deny time-off
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can deny time-off requests",
@@ -499,7 +499,7 @@ async def create_availability_override(
     """
     # Check permissions - staff can only create their own overrides unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -550,7 +550,7 @@ async def get_staff_availability_overrides(
     """
     # Check permissions - staff can view their own overrides, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -607,7 +607,7 @@ async def calculate_staff_availability(
     """
     # Check permissions - staff can check their own availability, admins can check all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -647,7 +647,7 @@ async def assign_service_to_staff(
     - Returns created/updated service assignment
     """
     # Check permissions - only owners/admins can assign services
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can assign services to staff",
@@ -693,7 +693,7 @@ async def remove_service_from_staff(
     - Returns no content on success
     """
     # Check permissions - only owners/admins can remove service assignments
-    if current_staff.role not in [StaffRole.OWNER_ADMIN]:
+    if current_staff.role not in [StaffRole.OWNER_ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business owners/admins can remove service assignments",
@@ -725,7 +725,7 @@ async def get_staff_services(
     """
     # Check permissions - staff can view their own services, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -776,7 +776,7 @@ async def get_staff_with_services(
     """
     # Check permissions - staff can view their own profile, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN, StaffRole.FRONT_DESK]
+        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(

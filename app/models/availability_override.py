@@ -7,7 +7,6 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Index,
-    Enum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -18,11 +17,11 @@ import uuid
 
 
 class OverrideType(enum.Enum):
-    AVAILABLE = "available"  # Make staff available during normally unavailable times
+    AVAILABLE = "AVAILABLE"  # Make staff available during normally unavailable times
     UNAVAILABLE = (
-        "unavailable"  # Make staff unavailable during normally available times
+        "UNAVAILABLE"  # Make staff unavailable during normally available times
     )
-    CUSTOM_HOURS = "custom_hours"  # Custom working hours for specific date/time
+    CUSTOM_HOURS = "CUSTOM_HOURS"  # Custom working hours for specific date/time
 
 
 class AvailabilityOverride(Base):
@@ -38,7 +37,7 @@ class AvailabilityOverride(Base):
     staff_id = Column(Integer, ForeignKey("staff.id"), nullable=False)
 
     # Override details
-    override_type = Column(Enum(OverrideType), nullable=False)
+    override_type = Column(String(20), nullable=False)
     start_datetime = Column(DateTime(timezone=True), nullable=False)
     end_datetime = Column(DateTime(timezone=True), nullable=False)
 

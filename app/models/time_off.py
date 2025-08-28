@@ -5,7 +5,6 @@ from sqlalchemy import (
     DateTime,
     Text,
     Boolean,
-    Enum,
     ForeignKey,
     Index,
 )
@@ -18,25 +17,25 @@ import uuid
 
 
 class OwnerType(enum.Enum):
-    BUSINESS = "business"
-    STAFF = "staff"
+    BUSINESS = "BUSINESS"
+    STAFF = "STAFF"
 
 
 class TimeOffType(enum.Enum):
-    VACATION = "vacation"
-    SICK_LEAVE = "sick_leave"
-    PERSONAL = "personal"
-    TRAINING = "training"
-    HOLIDAY = "holiday"
-    MAINTENANCE = "maintenance"
-    OTHER = "other"
+    VACATION = "VACATION"
+    SICK_LEAVE = "SICK_LEAVE"
+    PERSONAL = "PERSONAL"
+    TRAINING = "TRAINING"
+    HOLIDAY = "HOLIDAY"
+    MAINTENANCE = "MAINTENANCE"
+    OTHER = "OTHER"
 
 
 class TimeOffStatus(enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    DENIED = "denied"
-    CANCELLED = "cancelled"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    DENIED = "DENIED"
+    CANCELLED = "CANCELLED"
 
 
 class TimeOff(Base):
@@ -49,7 +48,7 @@ class TimeOff(Base):
     uuid = Column(
         UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
     )
-    owner_type = Column(Enum(OwnerType), nullable=False)
+    owner_type = Column(String(20), nullable=False)
     owner_id = Column(Integer, nullable=False)
 
     # Time-off period
@@ -57,12 +56,12 @@ class TimeOff(Base):
     end_datetime = Column(DateTime(timezone=True), nullable=False)
 
     # Type and details
-    type = Column(Enum(TimeOffType), nullable=False, default=TimeOffType.PERSONAL)
+    type = Column(String(20), nullable=False, default="PERSONAL")
     reason = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
 
     # Approval workflow
-    status = Column(Enum(TimeOffStatus), nullable=False, default=TimeOffStatus.PENDING)
+    status = Column(String(20), nullable=False, default="PENDING")
     approved_by_staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     approval_notes = Column(Text, nullable=True)
@@ -113,14 +112,14 @@ class TimeOff(Base):
 
     def overlaps_with(self, start_dt, end_dt):
         """Check if this time-off overlaps with a given time period."""
-        if self.status != TimeOffStatus.APPROVED:
+        if self.status != TimeOffStatus.APPROVED.value:
             return False
 
         return not (end_dt <= self.start_datetime or start_dt >= self.end_datetime)
 
     def is_active_at(self, check_datetime):
         """Check if time-off is active at a specific datetime."""
-        if self.status != TimeOffStatus.APPROVED:
+        if self.status != TimeOffStatus.APPROVED.value:
             return False
 
         return self.start_datetime <= check_datetime <= self.end_datetime
@@ -130,19 +129,28 @@ class TimeOff(Base):
         from app.models.staff import StaffRole
 
         # Owner can always modify (if pending)
-        if self.owner_type == OwnerType.STAFF and self.owner_id == staff_id:
-            return self.status == TimeOffStatus.PENDING
+        if self.owner_type == OwnerType.STAFF.value and self.owner_id == staff_id:
+            return self.status == TimeOffStatus.PENDING.value
 
         # Admin/Owner can modify any - handle both enum and string values
-        admin_roles = [StaffRole.OWNER_ADMIN, "owner_admin"]
+        admin_roles = [StaffRole.OWNER_ADMIN.value, "owner_admin"]
         if staff_role in admin_roles:
             return True
 
         return False
 
     def __repr__(self):
+        owner_type_str = (
+            self.owner_type.value
+            if hasattr(self.owner_type, "value")
+            else str(self.owner_type)
+        )
+        type_str = self.type.value if hasattr(self.type, "value") else str(self.type)
+        status_str = (
+            self.status.value if hasattr(self.status, "value") else str(self.status)
+        )
         return (
-            f"<TimeOff(id={self.id}, {self.owner_type.value}_id={self.owner_id}, "
-            f"type={self.type.value}, status={self.status.value}, "
+            f"<TimeOff(id={self.id}, {owner_type_str}_id={self.owner_id}, "
+            f"type={type_str}, status={status_str}, "
             f"{self.start_datetime.date()} - {self.end_datetime.date()})>"
         )

@@ -44,7 +44,7 @@ class TestStaffAPI:
             business_id=test_business.id,
             name="Test Staff",
             email="staff@test.com",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
             is_bookable=True,
             is_active=True,
         )
@@ -62,7 +62,7 @@ class TestStaffAPI:
             business_id=test_business.id,
             name="Admin Staff",
             email="admin@test.com",
-            role=StaffRole.OWNER_ADMIN,
+            role=StaffRole.OWNER_ADMIN.value,
             is_bookable=False,
             is_active=True,
         )
@@ -100,7 +100,7 @@ class TestStaffAPI:
             business_id=test_business.id,
             name="Other Staff",
             email="other@test.com",
-            role=StaffRole.STAFF,
+            role=StaffRole.STAFF.value,
             is_active=True,
         )
         db.add(other_staff)
@@ -138,7 +138,7 @@ class TestStaffAPI:
             "business_id": test_business.id,
             "name": "New Staff Member",
             "email": "newstaff@test.com",
-            "role": "staff",
+            "role": "STAFF",
             "is_bookable": True,
             "is_active": True,
         }
@@ -149,7 +149,7 @@ class TestStaffAPI:
         created_staff = response.json()
         assert created_staff["name"] == "New Staff Member"
         assert created_staff["email"] == "newstaff@test.com"
-        assert created_staff["role"] == "staff"
+        assert created_staff["role"] == "STAFF"
 
     @pytest.mark.asyncio
     async def test_get_staff_by_id(
@@ -259,7 +259,7 @@ class TestStaffAPI:
         time_off_data = {
             "start_datetime": "2024-06-01T09:00:00+00:00",
             "end_datetime": "2024-06-03T17:00:00+00:00",
-            "type": "vacation",
+            "type": "VACATION",
             "reason": "Summer vacation",
             "is_all_day": False,
         }
@@ -272,7 +272,7 @@ class TestStaffAPI:
         assert response.status_code == 201
 
         time_off = response.json()
-        assert time_off["type"] == "vacation"
+        assert time_off["type"] == "VACATION"
         assert time_off["reason"] == "Summer vacation"
 
     @pytest.mark.asyncio
@@ -289,7 +289,7 @@ class TestStaffAPI:
         time_off_data = {
             "start_datetime": "2024-06-01T09:00:00+00:00",
             "end_datetime": "2024-06-03T17:00:00+00:00",
-            "type": "vacation",
+            "type": "VACATION",
             "reason": "Summer vacation",
         }
 
@@ -317,7 +317,7 @@ class TestStaffAPI:
         assert approve_response.status_code == 200
 
         approved_time_off = approve_response.json()
-        assert approved_time_off["status"] == "approved"
+        assert approved_time_off["status"] == "APPROVED"
 
     @pytest.mark.asyncio
     async def test_assign_service_to_staff(
@@ -441,7 +441,7 @@ class TestStaffAPI:
             "business_id": test_business.id,
             "name": "Duplicate Staff",
             "email": "staff@test.com",  # Same email as existing staff
-            "role": "staff",
+            "role": "STAFF",
         }
 
         response = await client.post(

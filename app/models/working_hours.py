@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, Time, Boolean, Enum, Index
+from sqlalchemy import Column, Integer, DateTime, Time, Boolean, String, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -7,8 +7,8 @@ import uuid
 
 
 class OwnerType(enum.Enum):
-    BUSINESS = "business"
-    STAFF = "staff"
+    BUSINESS = "BUSINESS"
+    STAFF = "STAFF"
 
 
 class WeekDay(enum.Enum):
@@ -31,11 +31,11 @@ class WorkingHours(Base):
     uuid = Column(
         UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True
     )
-    owner_type = Column(Enum(OwnerType), nullable=False)
+    owner_type = Column(String(20), nullable=False)
     owner_id = Column(Integer, nullable=False)
 
     # Schedule details
-    weekday = Column(Enum(WeekDay), nullable=False)
+    weekday = Column(String(20), nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
@@ -66,7 +66,6 @@ class WorkingHours(Base):
         Index("ix_working_hours_weekday", "weekday"),
     )
 
-    @property
     def duration_minutes(self):
         """Calculate working duration in minutes, accounting for breaks."""
         from datetime import datetime
@@ -76,14 +75,15 @@ class WorkingHours(Base):
         end_dt = datetime.combine(datetime.today(), self.end_time)
 
         total_minutes = int((end_dt - start_dt).total_seconds() / 60)
-
+        print(f"Total minutes: {total_minutes}")
         # Subtract break time if configured
         if self.break_start_time and self.break_end_time:
             break_start_dt = datetime.combine(datetime.today(), self.break_start_time)
             break_end_dt = datetime.combine(datetime.today(), self.break_end_time)
             break_minutes = int((break_end_dt - break_start_dt).total_seconds() / 60)
+            print(f"Break minutes: {break_minutes}")
             total_minutes -= break_minutes
-
+        print(f"Total minutes after break: {total_minutes}")
         return max(0, total_minutes)
 
     def is_time_available(self, check_time):
@@ -110,9 +110,19 @@ class WorkingHours(Base):
         if self.break_start_time and self.break_end_time:
             break_info = f", break={self.break_start_time}-{self.break_end_time}"
 
+        # Handle both enum and string values for owner_type and weekday
+        owner_type_str = (
+            self.owner_type.value
+            if hasattr(self.owner_type, "value")
+            else str(self.owner_type)
+        )
+        weekday_str = (
+            self.weekday.name if hasattr(self.weekday, "name") else str(self.weekday)
+        )
+
         return (
             f"<WorkingHours(id={self.id}, "
-            f"{self.owner_type.value}_id={self.owner_id}, "
-            f"{self.weekday.name}: {self.start_time}-{self.end_time}"
+            f"{owner_type_str}_id={self.owner_id}, "
+            f"{weekday_str}: {self.start_time}-{self.end_time}"
             f"{break_info})>"
         )

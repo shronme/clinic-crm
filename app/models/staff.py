@@ -6,7 +6,6 @@ from sqlalchemy import (
     Text,
     Boolean,
     ForeignKey,
-    Enum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -17,9 +16,9 @@ import uuid
 
 
 class StaffRole(enum.Enum):
-    OWNER_ADMIN = "owner_admin"
-    STAFF = "staff"
-    FRONT_DESK = "front_desk"
+    OWNER_ADMIN = "OWNER_ADMIN"
+    STAFF = "STAFF"
+    FRONT_DESK = "FRONT_DESK"
 
 
 class Staff(Base):
@@ -42,7 +41,7 @@ class Staff(Base):
     bio = Column(Text, nullable=True)
 
     # Role and permissions
-    role = Column(Enum(StaffRole), nullable=False, default=StaffRole.STAFF)
+    role = Column(String(20), nullable=False, default="STAFF")
 
     # Booking settings
     is_bookable = Column(Boolean, default=True, nullable=False)
@@ -73,4 +72,4 @@ class Staff(Base):
     )
 
     def __repr__(self):
-        return f"<Staff(id={self.id}, name='{self.name}', role={self.role.value}, bookable={self.is_bookable})>"
+        return f"<Staff(id={self.id}, name='{self.name}', role={self.role}, bookable={self.is_bookable})>"
