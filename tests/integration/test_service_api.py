@@ -1,17 +1,9 @@
-import pytest
-from decimal import Decimal
-from httpx import AsyncClient
 from uuid import uuid4
 
+import pytest
+from httpx import AsyncClient
+
 from app.main import app
-from tests.fixtures.service_fixtures import (
-    sample_business,
-    sample_service_category,
-    sample_service,
-    sample_service_addon,
-    sample_staff,
-    sample_staff_service,
-)
 
 
 @pytest.fixture
@@ -68,7 +60,7 @@ class TestServiceCategoryAPI:
     ):
         """Test getting a single service category via API."""
         response = await client.get(
-            f"/api/v1/services/categories/" f"{sample_service_category.uuid}",
+            f"/api/v1/services/categories/{sample_service_category.uuid}",
             params={"business_id": sample_service_category.business_id},
         )
 

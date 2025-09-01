@@ -1,24 +1,25 @@
-import pytest
-from unittest.mock import AsyncMock, patch, Mock
 from datetime import datetime, time
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.models.staff import Staff, StaffRole
-from app.models.business import Business
-from app.models.working_hours import WeekDay, OwnerType
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
+import pytest
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.availability_override import OverrideType
+from app.models.business import Business
+from app.models.staff import Staff, StaffRole
 from app.models.staff_service import StaffService
-from app.services.staff_management import StaffManagementService
+from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
+from app.models.working_hours import OwnerType, WeekDay
 from app.schemas.staff import (
-    StaffCreate,
-    StaffUpdate,
-    WorkingHoursCreate,
-    TimeOffCreate,
     AvailabilityOverrideCreate,
     StaffAvailabilityQuery,
+    StaffCreate,
+    StaffUpdate,
+    TimeOffCreate,
+    WorkingHoursCreate,
 )
+from app.services.staff_management import StaffManagementService
 
 
 class TestStaffManagementService:

@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Optional, List
-from uuid import UUID
-from pydantic import BaseModel, Field, model_validator
 from enum import Enum
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field, model_validator
 
 # Import enums from the model to avoid duplication
 from app.models.appointment import AppointmentStatus, CancellationReason
@@ -32,7 +33,7 @@ class AppointmentCreate(AppointmentBase):
     business_id: Optional[int] = None
     booking_source: BookingSourceSchema = BookingSourceSchema.ADMIN
     booked_by_staff_id: Optional[int] = None
-    addon_ids: List[int] = Field(default_factory=list)
+    addon_ids: list[int] = Field(default_factory=list)
     deposit_required: bool = False
     deposit_amount: Optional[Decimal] = Field(None, ge=0)
 
@@ -166,7 +167,7 @@ class AppointmentSummary(BaseModel):
 
 
 class AppointmentList(BaseModel):
-    appointments: List[Appointment]
+    appointments: list[Appointment]
     total_count: int
     page: int
     page_size: int
@@ -223,21 +224,21 @@ class ConflictCheckRequest(BaseModel):
 
 class ConflictCheckResponse(BaseModel):
     has_conflict: bool
-    conflicts: List[str] = Field(default_factory=list)
-    alternative_slots: List[datetime] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    alternative_slots: list[datetime] = Field(default_factory=list)
 
 
 # Bulk operations
 class BulkAppointmentStatusUpdate(BaseModel):
-    appointment_uuids: List[UUID] = Field(..., min_length=1, max_length=50)
+    appointment_uuids: list[UUID] = Field(..., min_length=1, max_length=50)
     new_status: AppointmentStatus
     notes: Optional[str] = None
     notify_customers: bool = True
 
 
 class BulkAppointmentResponse(BaseModel):
-    successful_updates: List[UUID]
-    failed_updates: List[dict]  # [{"uuid": UUID, "error": str}, ...]
+    successful_updates: list[UUID]
+    failed_updates: list[dict]  # [{"uuid": UUID, "error": str}, ...]
     total_processed: int
 
 

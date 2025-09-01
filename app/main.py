@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
+
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import structlog
 
+from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.database import init_db
-from app.api.v1.api import api_router
 
 # Configure structured logging
 structlog.configure(

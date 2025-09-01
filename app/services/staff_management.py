@@ -1,27 +1,28 @@
-from datetime import datetime, date, timedelta, time
-from typing import List, Optional
+from datetime import date, datetime, time, timedelta
+from typing import Optional
 from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import and_, or_, select
-from fastapi import HTTPException, status
 
-from app.models.staff import Staff, StaffRole
-from app.models.working_hours import WorkingHours, WeekDay, OwnerType
-from app.models.time_off import TimeOff, TimeOffStatus
 from app.models.availability_override import AvailabilityOverride, OverrideType
+from app.models.staff import Staff, StaffRole
 from app.models.staff_service import StaffService
-from app.services.service import ServiceManagementService
+from app.models.time_off import TimeOff, TimeOffStatus
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
 from app.schemas.staff import (
-    StaffCreate,
-    StaffUpdate,
-    WorkingHoursCreate,
-    TimeOffCreate,
     AvailabilityOverrideCreate,
     StaffAvailabilityQuery,
-    StaffAvailabilitySlot,
     StaffAvailabilityResponse,
+    StaffAvailabilitySlot,
+    StaffCreate,
+    StaffUpdate,
+    TimeOffCreate,
+    WorkingHoursCreate,
 )
+from app.services.service import ServiceManagementService
 
 
 class StaffManagementService:
@@ -53,8 +54,8 @@ class StaffManagementService:
 
         staff_dict = staff_data.model_dump()
         # Convert enum values to their string representation
-        if 'role' in staff_dict and hasattr(staff_dict['role'], 'value'):
-            staff_dict['role'] = staff_dict['role'].value
+        if "role" in staff_dict and hasattr(staff_dict["role"], "value"):
+            staff_dict["role"] = staff_dict["role"].value
         staff = Staff(**staff_dict)
         self.db.add(staff)
         await self.db.commit()
@@ -97,7 +98,7 @@ class StaffManagementService:
 
     async def list_staff(
         self, business_id: int, include_inactive: bool = False
-    ) -> List[Staff]:
+    ) -> list[Staff]:
         """List all staff for a business."""
         query = (
             select(Staff)
@@ -176,8 +177,8 @@ class StaffManagementService:
 
     # Working Hours Management
     async def set_staff_working_hours(
-        self, staff_id: int, working_hours: List[WorkingHoursCreate]
-    ) -> List[WorkingHours]:
+        self, staff_id: int, working_hours: list[WorkingHoursCreate]
+    ) -> list[WorkingHours]:
         """Set working hours for staff (replaces existing)."""
         staff = await self.get_staff(staff_id)
         if not staff:
@@ -203,8 +204,8 @@ class StaffManagementService:
         for hours_data in working_hours:
             hours_dict = hours_data.model_dump()
             # Convert enum values to their string representation for database storage
-            if 'weekday' in hours_dict and hasattr(hours_dict['weekday'], 'value'):
-                hours_dict['weekday'] = str(hours_dict['weekday'].value)
+            if "weekday" in hours_dict and hasattr(hours_dict["weekday"], "value"):
+                hours_dict["weekday"] = str(hours_dict["weekday"].value)
             hours = WorkingHours(
                 owner_type=OwnerType.STAFF.value, owner_id=staff_id, **hours_dict
             )
@@ -217,8 +218,9 @@ class StaffManagementService:
 
         # Convert weekday strings back to WeekDay enums for response serialization
         from app.models.working_hours import WeekDay
+
         for hours in new_hours:
-            if hasattr(hours, 'weekday') and isinstance(hours.weekday, str):
+            if hasattr(hours, "weekday") and isinstance(hours.weekday, str):
                 try:
                     # Convert string weekday ('0', '1', etc.) back to WeekDay enum
                     hours.weekday = WeekDay(int(hours.weekday))
@@ -230,7 +232,7 @@ class StaffManagementService:
 
     async def get_staff_working_hours(
         self, staff_id: int, active_only: bool = True
-    ) -> List[WorkingHours]:
+    ) -> list[WorkingHours]:
         """Get working hours for staff."""
         query = select(WorkingHours).where(
             and_(
@@ -240,7 +242,7 @@ class StaffManagementService:
         )
 
         if active_only:
-            query = query.where(WorkingHours.is_active == True)
+            query = query.where(WorkingHours.is_active is True)
 
         query = query.order_by(WorkingHours.weekday)
         result = await self.db.execute(query)
@@ -248,7 +250,7 @@ class StaffManagementService:
 
     async def get_staff_working_hours_by_uuid(
         self, staff_uuid: UUID, active_only: bool = True
-    ) -> List[WorkingHours]:
+    ) -> list[WorkingHours]:
         """Get working hours for staff by UUID."""
         staff = await self.get_staff_by_uuid(staff_uuid)
         if not staff:
@@ -257,8 +259,8 @@ class StaffManagementService:
         return await self.get_staff_working_hours(staff.id, active_only)
 
     async def set_staff_working_hours_by_uuid(
-        self, staff_uuid: UUID, working_hours: List[WorkingHoursCreate]
-    ) -> List[WorkingHours]:
+        self, staff_uuid: UUID, working_hours: list[WorkingHoursCreate]
+    ) -> list[WorkingHours]:
         """Set working hours for staff by UUID."""
         staff = await self.get_staff_by_uuid(staff_uuid)
         if not staff:
@@ -284,7 +286,9 @@ class StaffManagementService:
             and_(
                 TimeOff.owner_type == "STAFF",
                 TimeOff.owner_id == staff_id,
-                TimeOff.status.in_([TimeOffStatus.PENDING.value, TimeOffStatus.APPROVED.value]),
+                TimeOff.status.in_(
+                    [TimeOffStatus.PENDING.value, TimeOffStatus.APPROVED.value]
+                ),
                 or_(
                     and_(
                         TimeOff.start_datetime <= time_off_data.start_datetime,
@@ -313,11 +317,9 @@ class StaffManagementService:
 
         time_off_dict = time_off_data.model_dump()
         # Convert enum values to their string representation for database storage
-        if 'type' in time_off_dict and hasattr(time_off_dict['type'], 'value'):
-            time_off_dict['type'] = time_off_dict['type'].value
-        time_off = TimeOff(
-            owner_type="STAFF", owner_id=staff_id, **time_off_dict
-        )
+        if "type" in time_off_dict and hasattr(time_off_dict["type"], "value"):
+            time_off_dict["type"] = time_off_dict["type"].value
+        time_off = TimeOff(owner_type="STAFF", owner_id=staff_id, **time_off_dict)
         self.db.add(time_off)
         await self.db.commit()
         await self.db.refresh(time_off)
@@ -340,7 +342,7 @@ class StaffManagementService:
         staff_id: int,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[TimeOff]:
+    ) -> list[TimeOff]:
         """Get time-off requests for staff."""
         query = select(TimeOff).where(
             and_(
@@ -364,7 +366,7 @@ class StaffManagementService:
         staff_uuid: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[TimeOff]:
+    ) -> list[TimeOff]:
         """Get time-off requests for staff by UUID."""
         staff = await self.get_staff_by_uuid(staff_uuid)
         if not staff:
@@ -524,12 +526,12 @@ class StaffManagementService:
         staff_id: int,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[AvailabilityOverride]:
+    ) -> list[AvailabilityOverride]:
         """Get availability overrides for staff."""
         query = select(AvailabilityOverride).where(
             and_(
                 AvailabilityOverride.staff_id == staff_id,
-                AvailabilityOverride.is_active == True,
+                AvailabilityOverride.is_active is True,
             )
         )
 
@@ -553,7 +555,7 @@ class StaffManagementService:
         staff_uuid: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[AvailabilityOverride]:
+    ) -> list[AvailabilityOverride]:
         """Get availability overrides for staff by UUID."""
         staff = await self.get_staff_by_uuid(staff_uuid)
         if not staff:
@@ -624,10 +626,10 @@ class StaffManagementService:
         self,
         start_dt: datetime,
         end_dt: datetime,
-        working_hours: List[WorkingHours],
-        time_offs: List[TimeOff],
-        overrides: List[AvailabilityOverride],
-    ) -> List[StaffAvailabilitySlot]:
+        working_hours: list[WorkingHours],
+        time_offs: list[TimeOff],
+        overrides: list[AvailabilityOverride],
+    ) -> list[StaffAvailabilitySlot]:
         """Internal method to calculate availability slots."""
         slots = []
         current_dt = start_dt
@@ -693,7 +695,8 @@ class StaffManagementService:
         """Assign a service to staff with optional overrides."""
         # Check if assignment already exists
         print(
-            f"Assigning service {service_id} to staff {staff_id} with overrides: {overrides}"
+            f"Assigning service {service_id} to staff {staff_id} with overrides: "
+            f"{overrides}"
         )
         existing_query = select(StaffService).where(
             and_(
@@ -778,7 +781,7 @@ class StaffManagementService:
 
     async def get_staff_services(
         self, staff_id: int, available_only: bool = True
-    ) -> List[StaffService]:
+    ) -> list[StaffService]:
         """Get services assigned to staff."""
         query = select(StaffService).where(StaffService.staff_id == staff_id)
 
@@ -791,7 +794,7 @@ class StaffManagementService:
 
     async def get_staff_services_by_uuid(
         self, staff_uuid: UUID, available_only: bool = True
-    ) -> List[StaffService]:
+    ) -> list[StaffService]:
         """Get services assigned to staff by UUID."""
         staff = await self.get_staff_by_uuid(staff_uuid)
         if not staff:

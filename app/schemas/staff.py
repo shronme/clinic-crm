@@ -1,11 +1,13 @@
 from datetime import datetime, time
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, validator, Field
-from app.models.staff import StaffRole
-from app.models.working_hours import WeekDay
-from app.models.time_off import TimeOffType, TimeOffStatus
+
+from pydantic import BaseModel, EmailStr, Field, validator
+
 from app.models.availability_override import OverrideType
+from app.models.staff import StaffRole
+from app.models.time_off import TimeOffStatus, TimeOffType
+from app.models.working_hours import WeekDay
 
 
 class StaffBase(BaseModel):
@@ -63,7 +65,7 @@ class StaffSummary(BaseModel):
 
 
 class StaffWithServices(Staff):
-    staff_services: List[dict]
+    staff_services: list[dict]
 
     class Config:
         from_attributes = True
@@ -253,7 +255,7 @@ class StaffAvailabilityQuery(BaseModel):
 
     start_datetime: datetime
     end_datetime: datetime
-    service_ids: Optional[List[int]] = None
+    service_ids: Optional[list[int]] = None
     include_overrides: bool = True
     include_time_offs: bool = True
 
@@ -273,6 +275,6 @@ class StaffAvailabilityResponse(BaseModel):
 
     staff_id: int
     query_period: StaffAvailabilityQuery
-    available_slots: List[StaffAvailabilitySlot]
-    unavailable_periods: List[dict]  # Time-off periods, overrides, etc.
-    working_hours_summary: List[dict]  # Weekly schedule summary
+    available_slots: list[StaffAvailabilitySlot]
+    unavailable_periods: list[dict]  # Time-off periods, overrides, etc.
+    working_hours_summary: list[dict]  # Weekly schedule summary

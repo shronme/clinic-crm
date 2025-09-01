@@ -1,17 +1,16 @@
-import pytest
 import asyncio
-import sys
 import os
+import sys
 from datetime import datetime
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Add the app directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.core.database import Base, get_db
 from app.main import app
-
 
 # Detect if we're running inside Docker container
 if os.path.exists("/.dockerenv"):
@@ -30,8 +29,7 @@ DB_PASSWORD = "clinic_password"
 # Use environment variable to determine test database
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/"
-    "test_clinic_crm",
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/test_clinic_crm",
 )
 
 

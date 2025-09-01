@@ -1,7 +1,8 @@
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Header
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.database import get_db
 from app.models.staff import Staff
@@ -49,7 +50,7 @@ async def get_current_staff(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         # Fallback to mock staff for development if database lookup fails
         staff = Staff(
             id=staff_id,

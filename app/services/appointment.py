@@ -1,38 +1,40 @@
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Tuple
 from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, func, select, update, delete
-from sqlalchemy.orm import selectinload, joinedload
-import uuid
+from sqlalchemy.orm import joinedload
 
 from app.models.appointment import Appointment, AppointmentStatus, CancellationReason
 from app.models.business import Business
 from app.models.customer import Customer
-from app.models.staff import Staff
 from app.models.service import Service
+from app.models.staff import Staff
 from app.schemas.appointment import (
     AppointmentCreate,
-    AppointmentUpdate,
-    AppointmentStatusTransition,
-    AppointmentReschedule,
-    AppointmentSlotLock,
     AppointmentFilters,
+    AppointmentReschedule,
     AppointmentSearch,
+    AppointmentSlotLock,
+    AppointmentStats,
+    AppointmentStatusTransition,
+    AppointmentUpdate,
+    BulkAppointmentResponse,
+    BulkAppointmentStatusUpdate,
     CancellationPolicyCheck,
     CancellationPolicyResponse,
     ConflictCheckRequest,
     ConflictCheckResponse,
-    BulkAppointmentStatusUpdate,
-    BulkAppointmentResponse,
-    AppointmentStats,
 )
-from app.services.scheduling import SchedulingEngineService
 from app.schemas.scheduling import AppointmentValidationRequest
+from app.services.scheduling import SchedulingEngineService
 
 
 class AppointmentService:
-    """Comprehensive appointment management service with CRUD, policies, and conflict prevention."""
+    """Comprehensive appointment management service with CRUD, policies, and conflict
+    prevention.
+    """
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -132,7 +134,7 @@ class AppointmentService:
 
     async def get_appointments(
         self, search: AppointmentSearch, business_id: Optional[int] = None
-    ) -> Tuple[List[Appointment], int]:
+    ) -> tuple[list[Appointment], int]:
         """Get appointments with filtering, search, and pagination."""
 
         query = select(Appointment).options(
@@ -182,7 +184,6 @@ class AppointmentService:
             update_data.scheduled_datetime
             and update_data.scheduled_datetime != appointment.scheduled_datetime
         ):
-
             # Check if appointment can be rescheduled
             if not appointment.is_active:
                 raise ValueError("Cannot reschedule inactive appointment")
@@ -243,7 +244,8 @@ class AppointmentService:
         if not appointment.can_transition_to(transition.new_status):
             current_status = AppointmentStatus(appointment.status)
             raise ValueError(
-                f"Cannot transition from {current_status.value} to {transition.new_status.value}"
+                f"Cannot transition from {current_status.value} to "
+                f"{transition.new_status.value}"
             )
 
         # Handle cancellation-specific logic
@@ -391,7 +393,7 @@ class AppointmentService:
         query = select(Appointment).where(
             and_(
                 Appointment.staff_id == check.staff_id,
-                Appointment.is_cancelled == False,
+                Appointment.is_cancelled is False,
                 or_(
                     and_(
                         Appointment.scheduled_datetime <= check.scheduled_datetime,
@@ -441,7 +443,7 @@ class AppointmentService:
                     )
                     if alternative_time != check.scheduled_datetime:
                         # Quick check if this slot is free (simplified)
-                        alt_check = ConflictCheckRequest(
+                        ConflictCheckRequest(
                             staff_id=check.staff_id,
                             scheduled_datetime=alternative_time,
                             duration_minutes=check.duration_minutes,
@@ -584,7 +586,8 @@ class AppointmentService:
         )
         if not staff.scalar_one_or_none():
             raise ValueError(
-                f"Staff {staff_id} not found or doesn't belong to business {business_id}"
+                f"Staff {staff_id} not found or doesn't belong to business "
+                f"{business_id}"
             )
 
         # Check service exists and belongs to business
@@ -595,7 +598,8 @@ class AppointmentService:
         )
         if not service.scalar_one_or_none():
             raise ValueError(
-                f"Service {service_id} not found or doesn't belong to business {business_id}"
+                f"Service {service_id} not found or doesn't belong to business "
+                f"{business_id}"
             )
 
     async def _get_customer_by_id(self, customer_id: int) -> Customer:

@@ -1,29 +1,25 @@
-import pytest
-from datetime import datetime, timedelta, time, date
-from sqlalchemy.orm import Session
-from unittest.mock import Mock, patch, AsyncMock
 import uuid
+from datetime import datetime, time, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.services.scheduling import SchedulingEngineService
-from app.models.business import Business
-from app.models.staff import Staff, StaffRole
-from app.models.service import Service
-from app.models.working_hours import WorkingHours, WeekDay, OwnerType
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
 from app.models.availability_override import AvailabilityOverride, OverrideType
+from app.models.business import Business
+from app.models.service import Service
+from app.models.staff import Staff, StaffRole
+from app.models.time_off import TimeOff, TimeOffStatus
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
 from app.schemas.scheduling import (
-    StaffAvailabilityQuery,
     AppointmentValidationRequest,
-    BusinessHoursQuery,
-    StaffScheduleQuery,
     AvailabilityStatus,
+    BusinessHoursQuery,
     ConflictType,
     SchedulingConflict,
+    StaffAvailabilityQuery,
 )
+from app.services.scheduling import SchedulingEngineService
 
 
 class TestSchedulingEngineService:
-
     def setup_method(self):
         """Set up test fixtures before each test method."""
         self.mock_db = AsyncMock()
@@ -277,13 +273,14 @@ class TestSchedulingEngineService:
                                 ) as mock_advance:
                                     mock_advance.return_value = True
 
-                                    status, conflicts = (
-                                        await self.scheduling_service._check_slot_availability(
-                                            self.sample_staff,
-                                            start_time,
-                                            end_time,
-                                            self.sample_service,
-                                        )
+                                    (
+                                        status,
+                                        conflicts,
+                                    ) = await self.scheduling_service._check_slot_availability(
+                                        self.sample_staff,
+                                        start_time,
+                                        end_time,
+                                        self.sample_service,
                                     )
 
                                     assert status == AvailabilityStatus.AVAILABLE
@@ -315,10 +312,11 @@ class TestSchedulingEngineService:
                         ) as mock_appointments:
                             mock_appointments.return_value = False
 
-                            status, conflicts = (
-                                await self.scheduling_service._check_slot_availability(
-                                    self.sample_staff, start_time, end_time
-                                )
+                            (
+                                status,
+                                conflicts,
+                            ) = await self.scheduling_service._check_slot_availability(
+                                self.sample_staff, start_time, end_time
                             )
 
                             assert status == AvailabilityStatus.UNAVAILABLE

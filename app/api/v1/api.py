@@ -1,14 +1,14 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    appointments,
     auth,
     business,
-    staff,
-    services,
     customers,
-    appointments,
-    scheduling,
     public,
+    scheduling,
+    services,
+    staff,
 )
 
 api_router = APIRouter()

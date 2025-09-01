@@ -1,3 +1,5 @@
+import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -16,26 +18,12 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-import sys
-import os
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+# Import after path setup
 from app.core.database import Base
 
 # Import all models to ensure they're registered
-from app.models import (
-    business,
-    staff,
-    service,
-    service_category,
-    service_addon,
-    staff_service,
-    customer,
-    appointment,
-    note,
-    notification,
-)
 
 target_metadata = Base.metadata
 
@@ -81,9 +69,11 @@ def run_migrations_online() -> None:
     if database_url:
         # Convert asyncpg URL to regular postgresql URL for alembic
         if database_url.startswith("postgresql+asyncpg://"):
-            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+            database_url = database_url.replace(
+                "postgresql+asyncpg://", "postgresql://"
+            )
         config.set_main_option("sqlalchemy.url", database_url)
-    
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

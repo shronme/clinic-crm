@@ -1,16 +1,16 @@
+from datetime import datetime, time, timedelta
+
 import pytest
-from datetime import datetime, timedelta, time
-from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from app.main import app
+from app.models.availability_override import AvailabilityOverride, OverrideType
 from app.models.business import Business
-from app.models.staff import Staff, StaffRole
 from app.models.service import Service
 from app.models.service_category import ServiceCategory
-from app.models.working_hours import WorkingHours, WeekDay, OwnerType
+from app.models.staff import Staff, StaffRole
 from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
-from app.models.availability_override import AvailabilityOverride, OverrideType
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
 
 
 @pytest.fixture

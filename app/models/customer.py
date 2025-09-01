@@ -1,20 +1,22 @@
+import enum
+import uuid
+from datetime import date
+
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
+    DateTime,
+    ForeignKey,
     Integer,
     String,
-    DateTime,
     Text,
-    Boolean,
-    Date,
-    ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.core.database import Base
-import uuid
-import enum
-from datetime import date
 
 
 class CustomerStatus(enum.Enum):

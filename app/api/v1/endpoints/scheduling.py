@@ -1,18 +1,19 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.database import get_db
-from app.services.scheduling import SchedulingEngineService
 from app.schemas.scheduling import (
-    StaffAvailabilityQuery,
-    AvailabilitySlot,
     AppointmentValidationRequest,
     AppointmentValidationResponse,
+    AvailabilitySlot,
     BusinessHoursQuery,
+    StaffAvailabilityQuery,
     StaffScheduleQuery,
 )
+from app.services.scheduling import SchedulingEngineService
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ async def get_staff_availability(
         False, description="Include unavailable/busy slots in response"
     ),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, List[AvailabilitySlot]]:
+) -> dict[str, list[AvailabilitySlot]]:
     """
     Get available time slots for a staff member within the specified time range.
 
@@ -66,7 +67,6 @@ async def get_staff_availability(
         return {"slots": slots}
 
     except Exception as e:
-
         raise HTTPException(
             status_code=500, detail=f"Failed to get staff availability: {str(e)}"
         )
@@ -109,7 +109,7 @@ async def get_business_hours(
     date: datetime = Query(..., description="Date to check business hours for"),
     include_breaks: bool = Query(True, description="Include break times in response"),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get business operating hours for a specific date.
 
@@ -150,7 +150,7 @@ async def get_staff_schedule(
         True, description="Include availability overrides"
     ),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get comprehensive schedule information for a staff member.
 
@@ -196,7 +196,7 @@ async def check_scheduling_conflicts(
         None, description="Optional service UUID for service-specific validation"
     ),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check for scheduling conflicts in a specific time range for a staff member.
 
@@ -252,7 +252,7 @@ async def check_scheduling_conflicts(
 
 @router.get("/availability/bulk")
 async def get_bulk_availability(
-    staff_uuids: List[str] = Query(..., description="List of staff UUIDs to check"),
+    staff_uuids: list[str] = Query(..., description="List of staff UUIDs to check"),
     start_datetime: datetime = Query(
         ..., description="Start datetime for availability check"
     ),
@@ -262,7 +262,7 @@ async def get_bulk_availability(
     service_uuid: str = Query(None, description="Optional service UUID"),
     slot_duration_minutes: int = Query(30, description="Slot duration in minutes"),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Dict[str, List[AvailabilitySlot]]]:
+) -> dict[str, dict[str, list[AvailabilitySlot]]]:
     """
     Get availability for multiple staff members at once.
 
@@ -309,7 +309,7 @@ async def find_next_available_slot(
     ),
     max_days_ahead: int = Query(7, description="Maximum days to search ahead"),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Find the next available appointment slot for a staff member and service.
 
@@ -373,7 +373,7 @@ async def reserve_time_slot(
         15, description="How long to reserve the slot (in minutes)"
     ),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Temporarily reserve a time slot to prevent double-booking during checkout.
 

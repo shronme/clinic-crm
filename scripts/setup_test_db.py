@@ -30,12 +30,10 @@ DB_PASSWORD = "clinic_password"
 MASTER_DB_NAME = "clinic_crm"
 
 TEST_DB_URL = (
-    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:"
-    f"{DB_PORT}/{TEST_DB_NAME}"
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
 )
 MASTER_DB_URL = (
-    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:"
-    f"{DB_PORT}/{MASTER_DB_NAME}"
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{MASTER_DB_NAME}"
 )
 
 

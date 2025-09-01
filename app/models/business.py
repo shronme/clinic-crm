@@ -1,13 +1,17 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 import uuid
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.core.database import Base
 
 
 class Business(Base):
-    """Business model with profile, timezone, currency, branding, and policy management."""
+    """Business model with profile, timezone, currency, branding, and policy
+    management.
+    """
 
     __tablename__ = "businesses"
 

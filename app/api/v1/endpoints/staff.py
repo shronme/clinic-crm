@@ -1,27 +1,30 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from uuid import UUID
 
-from app.api.deps.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps.auth import get_current_staff
 from app.api.deps.business import get_business_from_header
+from app.api.deps.database import get_db
 from app.models.staff import Staff, StaffRole
 from app.schemas.staff import (
-    StaffCreate,
-    StaffUpdate,
-    Staff as StaffSchema,
-    StaffSummary,
-    StaffWithServices,
-    WorkingHoursCreate,
-    WorkingHours,
-    TimeOffCreate,
-    TimeOff,
-    AvailabilityOverrideCreate,
     AvailabilityOverride,
+    AvailabilityOverrideCreate,
     StaffAvailabilityQuery,
     StaffAvailabilityResponse,
+    StaffCreate,
     StaffServiceOverride,
+    StaffSummary,
+    StaffUpdate,
+    StaffWithServices,
+    TimeOff,
+    TimeOffCreate,
+    WorkingHours,
+    WorkingHoursCreate,
+)
+from app.schemas.staff import (
+    Staff as StaffSchema,
 )
 from app.services.staff_management import StaffManagementService
 
@@ -29,7 +32,7 @@ router = APIRouter()
 
 
 # Staff CRUD Operations
-@router.get("/", response_model=List[StaffSummary])
+@router.get("/", response_model=list[StaffSummary])
 async def get_staff(
     include_inactive: bool = Query(False, description="Include inactive staff members"),
     db: AsyncSession = Depends(get_db),
@@ -117,7 +120,8 @@ async def get_staff_by_uuid(
     """
     # Check permissions - staff can only view their own profile unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -155,7 +159,8 @@ async def update_staff(
     """
     # Check permissions - staff can only update their own profile unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -226,10 +231,10 @@ async def delete_staff(
 
 
 # Working Hours Management
-@router.post("/{staff_uuid}/working-hours", response_model=List[WorkingHours])
+@router.post("/{staff_uuid}/working-hours", response_model=list[WorkingHours])
 async def set_staff_working_hours(
     staff_uuid: UUID,
-    working_hours: List[WorkingHoursCreate],
+    working_hours: list[WorkingHoursCreate],
     db: AsyncSession = Depends(get_db),
     business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
@@ -243,7 +248,8 @@ async def set_staff_working_hours(
     """
     # Check permissions - staff can only set their own hours unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -264,7 +270,7 @@ async def set_staff_working_hours(
         )
 
 
-@router.get("/{staff_uuid}/working-hours", response_model=List[WorkingHours])
+@router.get("/{staff_uuid}/working-hours", response_model=list[WorkingHours])
 async def get_staff_working_hours(
     staff_uuid: UUID,
     active_only: bool = Query(True, description="Include only active working hours"),
@@ -281,7 +287,8 @@ async def get_staff_working_hours(
     """
     # Check permissions - staff can view their own hours, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -318,7 +325,8 @@ async def create_time_off(
     """
     # Check permissions - staff can only create their own time-off unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -341,7 +349,7 @@ async def create_time_off(
         )
 
 
-@router.get("/{staff_uuid}/time-off", response_model=List[TimeOff])
+@router.get("/{staff_uuid}/time-off", response_model=list[TimeOff])
 async def get_staff_time_offs(
     staff_uuid: UUID,
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -360,7 +368,8 @@ async def get_staff_time_offs(
     """
     # Check permissions - staff can view their own time-offs, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -499,7 +508,8 @@ async def create_availability_override(
     """
     # Check permissions - staff can only create their own overrides unless they're admin
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -530,7 +540,7 @@ async def create_availability_override(
 
 
 @router.get(
-    "/{staff_uuid}/availability-overrides", response_model=List[AvailabilityOverride]
+    "/{staff_uuid}/availability-overrides", response_model=list[AvailabilityOverride]
 )
 async def get_staff_availability_overrides(
     staff_uuid: UUID,
@@ -550,7 +560,8 @@ async def get_staff_availability_overrides(
     """
     # Check permissions - staff can view their own overrides, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -607,7 +618,8 @@ async def calculate_staff_availability(
     """
     # Check permissions - staff can check their own availability, admins can check all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -708,7 +720,7 @@ async def remove_service_from_staff(
         )
 
 
-@router.get("/{staff_uuid}/services", response_model=List[dict])
+@router.get("/{staff_uuid}/services", response_model=list[dict])
 async def get_staff_services(
     staff_uuid: UUID,
     available_only: bool = Query(True, description="Include only available services"),
@@ -725,7 +737,8 @@ async def get_staff_services(
     """
     # Check permissions - staff can view their own services, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -748,8 +761,12 @@ async def get_staff_services(
                 "staff_id": staff_service.staff_id,
                 "override_duration_minutes": staff_service.override_duration_minutes,
                 "override_price": staff_service.override_price,
-                "override_buffer_before_minutes": staff_service.override_buffer_before_minutes,
-                "override_buffer_after_minutes": staff_service.override_buffer_after_minutes,
+                "override_buffer_before_minutes": (
+                    staff_service.override_buffer_before_minutes
+                ),
+                "override_buffer_after_minutes": (
+                    staff_service.override_buffer_after_minutes
+                ),
                 "is_available": staff_service.is_available,
                 "expertise_level": staff_service.expertise_level,
                 "notes": staff_service.notes,
@@ -776,7 +793,8 @@ async def get_staff_with_services(
     """
     # Check permissions - staff can view their own profile, admins can view all
     if (
-        current_staff.role not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
+        current_staff.role
+        not in [StaffRole.OWNER_ADMIN.value, StaffRole.FRONT_DESK.value]
         and current_staff.uuid != staff_uuid
     ):
         raise HTTPException(
@@ -809,8 +827,12 @@ async def get_staff_with_services(
                 "staff_id": staff_service.staff_id,
                 "override_duration_minutes": staff_service.override_duration_minutes,
                 "override_price": staff_service.override_price,
-                "override_buffer_before_minutes": staff_service.override_buffer_before_minutes,
-                "override_buffer_after_minutes": staff_service.override_buffer_after_minutes,
+                "override_buffer_before_minutes": (
+                    staff_service.override_buffer_before_minutes
+                ),
+                "override_buffer_after_minutes": (
+                    staff_service.override_buffer_after_minutes
+                ),
                 "is_available": staff_service.is_available,
                 "expertise_level": staff_service.expertise_level,
                 "notes": staff_service.notes,

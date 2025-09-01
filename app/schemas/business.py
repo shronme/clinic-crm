@@ -1,6 +1,7 @@
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -11,7 +12,7 @@ def validate_timezone(timezone: str) -> str:
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        raise ValueError(f"Invalid timezone: {timezone}")
+        raise ValueError(f"Invalid timezone: {timezone}") from None
     return timezone
 
 

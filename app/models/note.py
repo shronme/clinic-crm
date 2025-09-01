@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, DateTime, Text
+import uuid
+
+from sqlalchemy import Column, DateTime, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+
 from app.core.database import Base
-import uuid
 
 
 class Note(Base):

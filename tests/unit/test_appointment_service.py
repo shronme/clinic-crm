@@ -1,28 +1,28 @@
-import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
+
 from app.models.appointment import Appointment, AppointmentStatus, CancellationReason
 from app.models.business import Business
 from app.models.customer import Customer
-from app.models.staff import Staff
 from app.models.service import Service
-from app.services.appointment import AppointmentService
+from app.models.staff import Staff
 from app.schemas.appointment import (
     AppointmentCreate,
-    AppointmentUpdate,
-    AppointmentStatusTransition,
-    AppointmentReschedule,
-    AppointmentSlotLock,
     AppointmentFilters,
     AppointmentSearch,
+    AppointmentSlotLock,
+    AppointmentStatusTransition,
+    AppointmentUpdate,
+    BookingSourceSchema,
+    BulkAppointmentStatusUpdate,
     CancellationPolicyCheck,
     ConflictCheckRequest,
-    BulkAppointmentStatusUpdate,
-    BookingSourceSchema,
 )
+from app.services.appointment import AppointmentService
 
 
 @pytest.fixture

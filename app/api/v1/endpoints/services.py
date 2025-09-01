@@ -1,27 +1,28 @@
-from typing import List, Optional
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
 
 from app.core.database import get_db
 from app.schemas.service import (
     Service,
-    ServiceCreate,
-    ServiceUpdate,
-    ServiceCategory,
-    ServiceCategoryCreate,
-    ServiceCategoryUpdate,
     ServiceAddon,
     ServiceAddonCreate,
     ServiceAddonUpdate,
+    ServiceCategory,
+    ServiceCategoryCreate,
+    ServiceCategoryUpdate,
+    ServiceCreate,
+    ServiceUpdate,
     StaffService,
     StaffServiceCreate,
     StaffServiceUpdate,
 )
 from app.services.service import (
-    ServiceManagementService,
-    ServiceCategoryService,
     ServiceAddonService,
+    ServiceCategoryService,
+    ServiceManagementService,
     StaffServiceMappingService,
 )
 
@@ -29,7 +30,7 @@ router = APIRouter()
 
 
 # Service Category endpoints
-@router.get("/categories", response_model=List[ServiceCategory])
+@router.get("/categories", response_model=list[ServiceCategory])
 async def get_service_categories(
     business_id: int,
     parent_id: Optional[int] = None,
@@ -89,7 +90,7 @@ async def delete_service_category(
 
 
 # Service Add-on endpoints (must come before parameterized routes)
-@router.get("/addons", response_model=List[ServiceAddon])
+@router.get("/addons", response_model=list[ServiceAddon])
 async def get_service_addons(
     business_id: int,
     service_id: Optional[int] = None,
@@ -145,7 +146,7 @@ async def delete_service_addon(
 
 
 # Staff-Service mapping endpoints (must come before parameterized routes)
-@router.get("/staff-services", response_model=List[StaffService])
+@router.get("/staff-services", response_model=list[StaffService])
 async def get_staff_services(
     staff_id: Optional[int] = None,
     service_id: Optional[int] = None,
@@ -204,7 +205,7 @@ async def delete_staff_service(
 
 
 # Service endpoints (parameterized routes must come after specific routes)
-@router.get("/", response_model=List[Service])
+@router.get("/", response_model=list[Service])
 async def get_services(
     business_id: int,
     category_id: Optional[int] = None,

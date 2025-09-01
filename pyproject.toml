@@ -1,0 +1,47 @@
+[tool.ruff]
+# Exclude files and directories from linting
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".pytest_cache",
+    "__pycache__",
+    "alembic",
+    "scripts",
+]
+
+# Target Python version
+target-version = "py39"
+
+# Line length
+line-length = 88
+
+# Allow autofix for all enabled rules
+unsafe-fixes = true
+
+# Linting configuration
+[tool.ruff.lint]
+# Enable specific rules
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+
+# Ignore specific rules
+ignore = [
+    # E501 enabled globally for code, but we'll handle comments differently
+]
+
+# Per-file ignore rules
+[tool.ruff.lint.per-file-ignores]
+# FastAPI patterns only in API endpoints
+"app/api/**/*.py" = ["B008", "B904"]
+# Ignore E501 for test files (where long comments are common)
+"tests/**/*.py" = ["E501"]
+# Ignore E501 for specific file types if needed
+"**/*_test.py" = ["E501"]
+"**/test_*.py" = ["E501"]

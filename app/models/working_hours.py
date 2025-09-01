@@ -1,9 +1,11 @@
-from sqlalchemy import Column, Integer, DateTime, Time, Boolean, String, Index
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
-from app.core.database import Base
 import enum
 import uuid
+
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Time
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import func
+
+from app.core.database import Base
 
 
 class OwnerType(enum.Enum):

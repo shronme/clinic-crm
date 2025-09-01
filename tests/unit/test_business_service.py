@@ -1,16 +1,17 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 
-from app.services.business import BusinessService, business_service
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.business import Business
 from app.schemas.business import (
-    BusinessCreate,
-    BusinessUpdate,
     BusinessBranding,
+    BusinessCreate,
     BusinessPolicy,
+    BusinessUpdate,
 )
+from app.services.business import BusinessService, business_service
 
 
 @pytest.mark.unit

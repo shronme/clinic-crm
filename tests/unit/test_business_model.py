@@ -1,6 +1,7 @@
-import pytest
 import asyncio
-from datetime import datetime
+
+import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.business import Business
@@ -108,7 +109,9 @@ class TestBusinessModel:
         }
 
         business = Business(
-            name="JSON Test Salon", branding=branding_data, policy=policy_data
+            name="JSON Test Salon",
+            branding=branding_data,
+            policy=policy_data,
         )
 
         db.add(business)
@@ -134,7 +137,8 @@ class TestBusinessModel:
         business = Business()  # No name provided
         db.add(business)
 
-        with pytest.raises(Exception):  # Should raise IntegrityError
+        # Should raise IntegrityError
+        with pytest.raises(IntegrityError):
             await db.commit()
 
     @pytest.mark.asyncio

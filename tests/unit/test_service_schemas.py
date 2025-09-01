@@ -1,11 +1,16 @@
-import pytest
 from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
+
 from app.schemas.service import (
-    ServiceCategoryCreate, ServiceCategoryUpdate,
-    ServiceCreate, ServiceUpdate,
-    ServiceAddonCreate, ServiceAddonUpdate,
-    StaffServiceCreate, StaffServiceUpdate
+    ServiceAddonCreate,
+    ServiceCategoryCreate,
+    ServiceCategoryUpdate,
+    ServiceCreate,
+    ServiceUpdate,
+    StaffServiceCreate,
+    StaffServiceUpdate,
 )
 
 
@@ -21,9 +26,9 @@ class TestServiceCategorySchemas:
             "sort_order": 1,
             "is_active": True,
             "icon": "scissors",
-            "color": "#FF5733"
+            "color": "#FF5733",
         }
-        
+
         category = ServiceCategoryCreate(**data)
         assert category.name == "Hair Services"
         assert category.business_id == 1
@@ -31,24 +36,17 @@ class TestServiceCategorySchemas:
 
     def test_service_category_create_invalid_color(self):
         """Test service category creation with invalid color."""
-        data = {
-            "business_id": 1,
-            "name": "Hair Services",
-            "color": "invalid-color"
-        }
-        
+        data = {"business_id": 1, "name": "Hair Services", "color": "invalid-color"}
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceCategoryCreate(**data)
-        
+
         assert "String should match pattern" in str(exc_info.value)
 
     def test_service_category_update_partial(self):
         """Test partial service category update."""
-        data = {
-            "name": "Updated Hair Services",
-            "is_active": False
-        }
-        
+        data = {"name": "Updated Hair Services", "is_active": False}
+
         category_update = ServiceCategoryUpdate(**data)
         assert category_update.name == "Updated Hair Services"
         assert category_update.is_active is False
@@ -72,9 +70,9 @@ class TestServiceSchemas:
             "is_active": True,
             "requires_deposit": True,
             "deposit_amount": Decimal("10.00"),
-            "sort_order": 1
+            "sort_order": 1,
         }
-        
+
         service = ServiceCreate(**data)
         assert service.name == "Haircut"
         assert service.duration_minutes == 30
@@ -88,12 +86,12 @@ class TestServiceSchemas:
             "business_id": 1,
             "name": "Haircut",
             "duration_minutes": 0,  # Invalid: must be > 0
-            "price": Decimal("25.00")
+            "price": Decimal("25.00"),
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceCreate(**data)
-        
+
         assert "Input should be greater than 0" in str(exc_info.value)
 
     def test_service_create_negative_price(self):
@@ -102,12 +100,12 @@ class TestServiceSchemas:
             "business_id": 1,
             "name": "Haircut",
             "duration_minutes": 30,
-            "price": Decimal("-5.00")  # Invalid: must be >= 0
+            "price": Decimal("-5.00"),  # Invalid: must be >= 0
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceCreate(**data)
-        
+
         assert "Input should be greater than or equal to 0" in str(exc_info.value)
 
     def test_service_create_requires_deposit_without_amount(self):
@@ -117,22 +115,21 @@ class TestServiceSchemas:
             "name": "Haircut",
             "duration_minutes": 30,
             "price": Decimal("25.00"),
-            "requires_deposit": True
+            "requires_deposit": True,
             # Missing deposit_amount
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceCreate(**data)
-        
-        assert "Deposit amount is required when requires_deposit is True" in str(exc_info.value)
+
+        assert "Deposit amount is required when requires_deposit is True" in str(
+            exc_info.value
+        )
 
     def test_service_update_partial(self):
         """Test partial service update."""
-        data = {
-            "name": "Premium Haircut",
-            "price": Decimal("35.00")
-        }
-        
+        data = {"name": "Premium Haircut", "price": Decimal("35.00")}
+
         service_update = ServiceUpdate(**data)
         assert service_update.name == "Premium Haircut"
         assert service_update.price == Decimal("35.00")
@@ -154,9 +151,9 @@ class TestServiceAddonSchemas:
             "is_active": True,
             "is_required": False,
             "max_quantity": 2,
-            "sort_order": 1
+            "sort_order": 1,
         }
-        
+
         addon = ServiceAddonCreate(**data)
         assert addon.name == "Hair Wash"
         assert addon.extra_duration_minutes == 15
@@ -169,12 +166,12 @@ class TestServiceAddonSchemas:
             "service_id": 1,
             "name": "Hair Wash",
             "extra_duration_minutes": -5,  # Invalid: must be >= 0
-            "price": Decimal("5.00")
+            "price": Decimal("5.00"),
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceAddonCreate(**data)
-        
+
         assert "Input should be greater than or equal to 0" in str(exc_info.value)
 
     def test_service_addon_create_zero_max_quantity(self):
@@ -184,12 +181,12 @@ class TestServiceAddonSchemas:
             "service_id": 1,
             "name": "Hair Wash",
             "price": Decimal("5.00"),
-            "max_quantity": 0  # Invalid: must be > 0
+            "max_quantity": 0,  # Invalid: must be > 0
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             ServiceAddonCreate(**data)
-        
+
         assert "Input should be greater than 0" in str(exc_info.value)
 
 
@@ -208,9 +205,9 @@ class TestStaffServiceSchemas:
             "is_available": True,
             "expertise_level": "senior",
             "notes": "Specializes in modern cuts",
-            "requires_approval": False
+            "requires_approval": False,
         }
-        
+
         mapping = StaffServiceCreate(**data)
         assert mapping.staff_id == 1
         assert mapping.service_id == 1
@@ -222,21 +219,18 @@ class TestStaffServiceSchemas:
         data = {
             "staff_id": 1,
             "service_id": 1,
-            "override_duration_minutes": 0  # Invalid: must be > 0 if provided
+            "override_duration_minutes": 0,  # Invalid: must be > 0 if provided
         }
-        
+
         with pytest.raises(ValidationError) as exc_info:
             StaffServiceCreate(**data)
-        
+
         assert "Input should be greater than 0" in str(exc_info.value)
 
     def test_staff_service_update_partial(self):
         """Test partial staff-service mapping update."""
-        data = {
-            "expertise_level": "expert",
-            "notes": "Updated specialization"
-        }
-        
+        data = {"expertise_level": "expert", "notes": "Updated specialization"}
+
         mapping_update = StaffServiceUpdate(**data)
         assert mapping_update.expertise_level == "expert"
         assert mapping_update.notes == "Updated specialization"

@@ -1,10 +1,9 @@
-import pytest
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, time
 
-from app.models.staff import Staff, StaffRole
-from app.models.working_hours import WorkingHours, WeekDay
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType, OwnerType
 from app.models.availability_override import AvailabilityOverride, OverrideType
+from app.models.staff import Staff, StaffRole
+from app.models.time_off import OwnerType, TimeOff, TimeOffStatus, TimeOffType
+from app.models.working_hours import WorkingHours
 
 
 class TestStaffModel:

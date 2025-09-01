@@ -1,11 +1,12 @@
 """Unit tests for Customer model."""
 
+from datetime import date
+
 import pytest
-from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.customer import Customer, CustomerStatus, GenderType
 from app.models.business import Business
+from app.models.customer import Customer, CustomerStatus, GenderType
 
 
 class TestCustomerModel:

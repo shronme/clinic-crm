@@ -1,17 +1,17 @@
-import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 from httpx import AsyncClient
 
 from app.main import app
-from app.models.appointment import Appointment, AppointmentStatus, CancellationReason
+from app.models.appointment import Appointment, AppointmentStatus
 from app.models.business import Business
 from app.models.customer import Customer
-from app.models.staff import Staff
 from app.models.service import Service
-from app.models.working_hours import WorkingHours, OwnerType, WeekDay
-from app.schemas.appointment import BookingSourceSchema
+from app.models.staff import Staff
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
 
 
 @pytest.fixture
@@ -51,7 +51,8 @@ async def test_business_working_hours(db, test_business):
 
     working_hours = []
 
-    # Create working hours for all days of the week to support dynamic appointment dates
+    # Create working hours for all days of the week to support
+    #  dynamic appointment dates
     for day in WeekDay:
         day_hours = WorkingHours(
             uuid=uuid4(),
@@ -92,7 +93,8 @@ async def test_staff_working_hours(db, test_staff):
 
     working_hours = []
 
-    # Create working hours for all days of the week to support dynamic appointment dates
+    # Create working hours for all days of the week to support
+    # dynamic appointment dates
     for day in WeekDay:
         day_hours = WorkingHours(
             uuid=uuid4(),
@@ -166,7 +168,7 @@ def client():
 @pytest.fixture
 def mock_current_business(test_business):
     """Mock current business dependency."""
-    from app.api.deps.business import get_business_from_header, BusinessContext
+    from app.api.deps.business import BusinessContext, get_business_from_header
 
     async def _mock_current_business():
         return BusinessContext(test_business)

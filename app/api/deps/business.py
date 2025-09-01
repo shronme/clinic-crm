@@ -1,7 +1,8 @@
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Header
-from sqlalchemy.ext.asyncio import AsyncSession
+
 import structlog
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.business import Business

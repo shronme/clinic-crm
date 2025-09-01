@@ -1,33 +1,34 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps.business import BusinessContext, get_business_from_header
 from app.api.deps.database import get_db
-from app.api.deps.business import get_business_from_header, BusinessContext
-from app.services.appointment import AppointmentService
 from app.schemas.appointment import (
-    AppointmentCreate,
-    AppointmentUpdate,
     Appointment,
-    AppointmentWithRelations,
-    AppointmentList,
-    AppointmentSearch,
+    AppointmentCreate,
     AppointmentFilters,
-    AppointmentStatusTransition,
+    AppointmentList,
     AppointmentReschedule,
+    AppointmentSearch,
     AppointmentSlotLock,
+    AppointmentStats,
+    AppointmentStatus,
+    AppointmentStatusTransition,
+    AppointmentUpdate,
+    AppointmentWithRelations,
+    BookingSourceSchema,
+    BulkAppointmentResponse,
+    BulkAppointmentStatusUpdate,
     CancellationPolicyCheck,
     CancellationPolicyResponse,
     ConflictCheckRequest,
     ConflictCheckResponse,
-    BulkAppointmentStatusUpdate,
-    BulkAppointmentResponse,
-    AppointmentStats,
-    BookingSourceSchema,
-    AppointmentStatus,
 )
+from app.services.appointment import AppointmentService
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ async def create_appointment(
         return appointment
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -179,7 +180,7 @@ async def update_appointment(
         return appointment
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -217,7 +218,7 @@ async def transition_appointment_status(
         return appointment
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -254,7 +255,7 @@ async def reschedule_appointment(
         return appointment
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

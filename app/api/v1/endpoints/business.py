@@ -1,11 +1,11 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
+from app.schemas.business import BusinessCreate, BusinessResponse, BusinessUpdate
 from app.services.business import business_service
-from app.schemas.business import BusinessCreate, BusinessUpdate, BusinessResponse
 
 router = APIRouter()
 
@@ -38,7 +38,7 @@ async def get_business(business_uuid: UUID, db: AsyncSession = Depends(get_db)):
     return business
 
 
-@router.get("/", response_model=List[BusinessResponse])
+@router.get("/", response_model=list[BusinessResponse])
 async def get_businesses(
     skip: int = Query(0, ge=0, description="Number of businesses to skip"),
     limit: int = Query(

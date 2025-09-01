@@ -1,8 +1,9 @@
-from typing import Optional, List
-from datetime import datetime, date
-from uuid import UUID
-from pydantic import BaseModel, Field, field_validator, EmailStr
+from datetime import date, datetime
 from enum import Enum
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class CustomerStatus(str, Enum):
@@ -136,7 +137,8 @@ class CustomerBase(BaseModel):
             .isdigit()
         ):
             raise ValueError(
-                "Phone number must contain only digits, spaces, dashes, plus signs, and parentheses"
+                "Phone number must contain only digits, spaces, dashes, plus signs, "
+                "and parentheses"
             )
         return v
 
@@ -212,7 +214,8 @@ class CustomerUpdate(BaseModel):
             .isdigit()
         ):
             raise ValueError(
-                "Phone number must contain only digits, spaces, dashes, plus signs, and parentheses"
+                "Phone number must contain only digits, spaces, dashes, plus signs, "
+                "and parentheses"
             )
         return v
 
@@ -256,7 +259,7 @@ class CustomerResponse(CustomerBase):
 class CustomerListResponse(BaseModel):
     """Schema for paginated customer list responses."""
 
-    customers: List[CustomerResponse]
+    customers: list[CustomerResponse]
     total: int
     page: int
     page_size: int
@@ -317,8 +320,8 @@ class CustomerCSVImportResponse(BaseModel):
     imported_records: int = Field(..., description="Successfully imported records")
     updated_records: int = Field(..., description="Updated existing records")
     failed_records: int = Field(..., description="Failed import records")
-    errors: List[dict] = Field(..., description="Import error details")
-    warnings: List[dict] = Field(..., description="Import warnings")
+    errors: list[dict] = Field(..., description="Import error details")
+    warnings: list[dict] = Field(..., description="Import warnings")
 
 
 class CustomerStats(BaseModel):

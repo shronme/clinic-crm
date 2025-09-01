@@ -1,21 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
-from app.api.deps.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps.business import get_business_from_header
+from app.api.deps.database import get_db
 from app.models.business import Business
 from app.models.customer import CustomerStatus
 from app.schemas.customer import (
     CustomerCreate,
-    CustomerUpdate,
-    CustomerResponse,
-    CustomerListResponse,
-    CustomerSearch,
-    CustomerStats,
     CustomerCSVImport,
     CustomerCSVImportResponse,
+    CustomerListResponse,
+    CustomerResponse,
+    CustomerSearch,
+    CustomerStats,
+    CustomerUpdate,
 )
 from app.services.customer import customer_service
 
@@ -60,7 +61,8 @@ async def get_customers(
             include_inactive=include_inactive,
         )
 
-        # For now, return simple list. In production, you'd want total count for pagination
+        # For now, return simple list. In production, you'd want total count for
+        # pagination
         return CustomerListResponse(
             customers=[CustomerResponse.from_orm(customer) for customer in customers],
             total=len(customers),  # This should be actual total count from database
@@ -68,7 +70,7 @@ async def get_customers(
             page_size=limit,
             total_pages=((len(customers) - 1) // limit + 1) if customers else 0,
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to retrieve customers")
 
 
@@ -97,7 +99,7 @@ async def search_customers(
             page_size=limit,
             total_pages=((total - 1) // limit + 1) if total > 0 else 0,
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to search customers")
 
 
@@ -110,7 +112,7 @@ async def get_customer_stats(
     try:
         stats = await customer_service.get_customer_stats(db, business.id)
         return stats
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500, detail="Failed to retrieve customer statistics"
         )
@@ -132,7 +134,7 @@ async def get_customer(
         return CustomerResponse.from_orm(customer)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to retrieve customer")
 
 
@@ -155,7 +157,7 @@ async def update_customer(
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to update customer")
 
 
@@ -177,7 +179,7 @@ async def delete_customer(
             raise HTTPException(status_code=404, detail="Customer not found")
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to delete customer")
 
 
@@ -197,7 +199,7 @@ async def get_customer_appointment_history(
         )
         # Return simplified appointment data or use proper appointment response schema
         return {"appointments": appointments}  # In production, use proper schema
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500, detail="Failed to retrieve appointment history"
         )
@@ -244,7 +246,7 @@ async def update_customer_visit_stats(
         return {"message": "Customer visit stats updated successfully"}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500, detail="Failed to update customer visit stats"
         )

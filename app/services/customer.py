@@ -1,24 +1,25 @@
-from typing import Optional, List, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, or_, func, text
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
-import structlog
-from uuid import UUID, uuid4
+import base64
 import csv
 import io
-import base64
 from datetime import date, datetime
+from typing import Optional
+from uuid import UUID, uuid4
 
-from app.models.customer import Customer, CustomerStatus
+import structlog
+from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.models.appointment import Appointment
+from app.models.customer import Customer, CustomerStatus
 from app.schemas.customer import (
     CustomerCreate,
-    CustomerUpdate,
-    CustomerSearch,
-    CustomerStats,
     CustomerCSVImport,
     CustomerCSVImportResponse,
+    CustomerSearch,
+    CustomerStats,
+    CustomerUpdate,
 )
 
 logger = structlog.get_logger(__name__)
@@ -82,7 +83,7 @@ class CustomerService:
             )
             raise ValueError(
                 "Customer with this email may already exist in this business"
-            )
+            ) from e
         except Exception as e:
             await db.rollback()
             logger.error(
@@ -131,7 +132,7 @@ class CustomerService:
         limit: int = 100,
         status_filter: Optional[CustomerStatus] = None,
         include_inactive: bool = False,
-    ) -> List[Customer]:
+    ) -> list[Customer]:
         """Get list of customers with pagination and filtering."""
         try:
             query = select(Customer).where(Customer.business_id == business_id)
@@ -169,7 +170,7 @@ class CustomerService:
         search_params: CustomerSearch,
         skip: int = 0,
         limit: int = 100,
-    ) -> Tuple[List[Customer], int]:
+    ) -> tuple[list[Customer], int]:
         """Search customers with advanced filtering."""
         try:
             query = select(Customer).where(Customer.business_id == business_id)
@@ -425,7 +426,7 @@ class CustomerService:
                 business_id=business_id,
                 error=str(e),
             )
-            raise ValueError("Update failed due to constraint violation")
+            raise ValueError("Update failed due to constraint violation") from e
         except Exception as e:
             await db.rollback()
             logger.error(
@@ -540,7 +541,7 @@ class CustomerService:
 
             vip_customers_result = await db.execute(
                 select(func.count(Customer.id)).where(
-                    and_(Customer.business_id == business_id, Customer.is_vip == True)
+                    and_(Customer.business_id == business_id, Customer.is_vip is True)
                 )
             )
             vip_customers = vip_customers_result.scalar() or 0
@@ -665,13 +666,17 @@ class CustomerService:
                         errors.append(
                             {
                                 "row": row_num,
-                                "error": "Missing required fields: first_name and last_name",
+                                "error": (
+                                    "Missing required fields: first_name and last_name"
+                                ),
                             }
                         )
                         failed_records += 1
                         continue
 
-                    # Check for existing customer if update_existing or skip_duplicates is enabled
+                    # Check for existing customer if update_existing or skip_duplicates
+                    # is
+                    # enabled
                     existing_customer = None
                     if customer_data.get("email"):
                         result = await db.execute(
@@ -692,7 +697,10 @@ class CustomerService:
                             warnings.append(
                                 {
                                     "row": row_num,
-                                    "warning": f'Skipping duplicate customer: {customer_data["email"]}',
+                                    "warning": (
+                                        f"Skipping duplicate customer: "
+                                        f"{customer_data['email']}"
+                                    ),
                                 }
                             )
                             continue
@@ -729,7 +737,10 @@ class CustomerService:
                                 warnings.append(
                                     {
                                         "row": row_num,
-                                        "warning": f'Invalid date format for date_of_birth: {customer_data["date_of_birth"]}',
+                                        "warning": (
+                                            f"Invalid date format for date_of_birth: "
+                                            f"{customer_data['date_of_birth']}"
+                                        ),
                                     }
                                 )
                                 del customer_data["date_of_birth"]
@@ -793,7 +804,7 @@ class CustomerService:
 
     async def get_customer_appointment_history(
         self, db: AsyncSession, customer_uuid: UUID, business_id: int, limit: int = 50
-    ) -> List[Appointment]:
+    ) -> list[Appointment]:
         """Get customer's appointment history."""
         try:
             customer = await self.get_customer_by_uuid(db, customer_uuid, business_id)

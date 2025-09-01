@@ -1,24 +1,24 @@
-from datetime import datetime, timedelta, time, date
-from typing import List, Optional, Dict, Any, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, func, select
+from datetime import datetime, timedelta
+from typing import Any, Optional
 
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.availability_override import AvailabilityOverride
 from app.models.business import Business
-from app.models.staff import Staff
 from app.models.service import Service
-from app.models.working_hours import WorkingHours, WeekDay, OwnerType
+from app.models.staff import Staff
 from app.models.time_off import TimeOff, TimeOffStatus
-from app.models.availability_override import AvailabilityOverride, OverrideType
-from app.models.appointment import Appointment
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
 from app.schemas.scheduling import (
-    AvailabilitySlot,
-    AvailabilityStatus,
-    ConflictType,
-    SchedulingConflict,
     AppointmentValidationRequest,
     AppointmentValidationResponse,
-    StaffAvailabilityQuery,
+    AvailabilitySlot,
+    AvailabilityStatus,
     BusinessHoursQuery,
+    ConflictType,
+    SchedulingConflict,
+    StaffAvailabilityQuery,
     StaffScheduleQuery,
 )
 
@@ -31,7 +31,7 @@ class SchedulingEngineService:
 
     async def get_staff_availability(
         self, query: StaffAvailabilityQuery
-    ) -> List[AvailabilitySlot]:
+    ) -> list[AvailabilitySlot]:
         """Get available time slots for a staff member."""
         staff = await self._get_staff_by_uuid(query.staff_uuid)
         if not staff:
@@ -141,13 +141,13 @@ class SchedulingEngineService:
         start_time: datetime,
         end_time: datetime,
         service: Optional[Service] = None,
-    ) -> Tuple[AvailabilityStatus, List[ConflictType]]:
+    ) -> tuple[AvailabilityStatus, list[ConflictType]]:
         """Check if a time slot is available for a staff member."""
         conflicts = []
 
         # For now, return all slots as available to get basic functionality working
         # TODO: Implement proper conflict checking with async database queries
-        
+
         # Basic business hours check (9 AM to 5 PM)
         if start_time.hour < 9 or end_time.hour > 17:
             conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
@@ -160,12 +160,14 @@ class SchedulingEngineService:
 
     async def _validate_scheduling_constraints(
         self, staff: Staff, service: Service, start_time: datetime, end_time: datetime
-    ) -> List[SchedulingConflict]:
+    ) -> list[SchedulingConflict]:
         """Validate all scheduling constraints for an appointment."""
         conflicts = []
 
         # Business hours validation
-        if not await self._is_within_business_hours(staff.business_id, start_time, end_time):
+        if not await self._is_within_business_hours(
+            staff.business_id, start_time, end_time
+        ):
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.OUTSIDE_WORKING_HOURS,
@@ -176,7 +178,9 @@ class SchedulingEngineService:
             )
 
         # Staff working hours validation
-        if not await self._is_within_staff_working_hours(staff.id, start_time, end_time):
+        if not await self._is_within_staff_working_hours(
+            staff.id, start_time, end_time
+        ):
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.OUTSIDE_WORKING_HOURS,
@@ -223,7 +227,9 @@ class SchedulingEngineService:
             )
 
         # Lead time policy validation
-        if not await self._check_lead_time_policy(staff.business_id, service, start_time):
+        if not await self._check_lead_time_policy(
+            staff.business_id, service, start_time
+        ):
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.LEAD_TIME_VIOLATION,
@@ -260,7 +266,7 @@ class SchedulingEngineService:
                 WorkingHours.owner_type == OwnerType.BUSINESS.value,
                 WorkingHours.owner_id == business_id,
                 WorkingHours.weekday == weekday.name,
-                WorkingHours.is_active == True,
+                WorkingHours.is_active is True,
             )
         )
         result = await self.db.execute(query)
@@ -285,7 +291,7 @@ class SchedulingEngineService:
                 WorkingHours.owner_type == OwnerType.STAFF.value,
                 WorkingHours.owner_id == staff_id,
                 WorkingHours.weekday == weekday.name,
-                WorkingHours.is_active == True,
+                WorkingHours.is_active is True,
             )
         )
         result = await self.db.execute(query)
@@ -335,7 +341,7 @@ class SchedulingEngineService:
         query = select(AvailabilityOverride).where(
             and_(
                 AvailabilityOverride.staff_id == staff_id,
-                AvailabilityOverride.is_active == True,
+                AvailabilityOverride.is_active is True,
                 or_(
                     and_(
                         AvailabilityOverride.start_datetime <= start_time,
@@ -366,7 +372,8 @@ class SchedulingEngineService:
         self, staff_id: int, start_time: datetime, end_time: datetime
     ) -> bool:
         """Check if time period conflicts with existing appointments."""
-        # TODO: Implement appointment conflict checking when appointment model is complete
+        # TODO: Implement appointment conflict checking when appointment model is
+        # complete
         # For now, assume no conflicts since appointments aren't fully implemented
         return False
 
@@ -427,9 +434,8 @@ class SchedulingEngineService:
         service: Service,
         preferred_time: datetime,
         duration_minutes: int,
-    ) -> List[AvailabilitySlot]:
+    ) -> list[AvailabilitySlot]:
         """Find alternative available slots around the preferred time."""
-        alternatives = []
 
         # Search for alternatives within 7 days of preferred time
         search_start = preferred_time.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -454,7 +460,7 @@ class SchedulingEngineService:
 
         return available_slots
 
-    def _calculate_addon_duration(self, addon_uuids: List[str]) -> int:
+    def _calculate_addon_duration(self, addon_uuids: list[str]) -> int:
         """Calculate total duration of service addons."""
         if not addon_uuids:
             return 0
@@ -465,9 +471,7 @@ class SchedulingEngineService:
 
     async def _get_staff_by_uuid(self, staff_uuid: str) -> Optional[Staff]:
         """Get staff by UUID."""
-        result = await self.db.execute(
-            select(Staff).filter(Staff.uuid == staff_uuid)
-        )
+        result = await self.db.execute(select(Staff).filter(Staff.uuid == staff_uuid))
         return result.scalar_one_or_none()
 
     async def _get_service_by_uuid(self, service_uuid: str) -> Optional[Service]:
@@ -477,7 +481,7 @@ class SchedulingEngineService:
         )
         return result.scalar_one_or_none()
 
-    async def get_business_hours(self, query: BusinessHoursQuery) -> Dict[str, Any]:
+    async def get_business_hours(self, query: BusinessHoursQuery) -> dict[str, Any]:
         """Get business hours for a specific date."""
         query_business = select(Business).where(Business.uuid == query.business_uuid)
         result = await self.db.execute(query_business)
@@ -492,7 +496,7 @@ class SchedulingEngineService:
                 WorkingHours.owner_type == OwnerType.BUSINESS.value,
                 WorkingHours.owner_id == business.id,
                 WorkingHours.weekday == weekday.name,
-                WorkingHours.is_active == True,
+                WorkingHours.is_active is True,
             )
         )
         result_hours = await self.db.execute(query_hours)
@@ -519,7 +523,7 @@ class SchedulingEngineService:
 
         return result
 
-    async def get_staff_schedule(self, query: StaffScheduleQuery) -> Dict[str, Any]:
+    async def get_staff_schedule(self, query: StaffScheduleQuery) -> dict[str, Any]:
         """Get comprehensive staff schedule including all relevant information."""
         staff = await self._get_staff_by_uuid(query.staff_uuid)
         if not staff:
@@ -547,7 +551,7 @@ class SchedulingEngineService:
                     WorkingHours.owner_type == OwnerType.STAFF.value,
                     WorkingHours.owner_id == staff.id,
                     WorkingHours.weekday == weekday.name,
-                    WorkingHours.is_active == True,
+                    WorkingHours.is_active is True,
                 )
             )
             result_wh = await self.db.execute(query_wh)
@@ -605,7 +609,11 @@ class SchedulingEngineService:
                 result["time_off"].append(
                     {
                         "uuid": str(time_off.uuid),
-                        "type": time_off.type.value if hasattr(time_off.type, 'value') else str(time_off.type),
+                        "type": (
+                            time_off.type.value
+                            if hasattr(time_off.type, "value")
+                            else str(time_off.type)
+                        ),
                         "start_datetime": time_off.start_datetime.isoformat(),
                         "end_datetime": time_off.end_datetime.isoformat(),
                         "reason": time_off.reason,
@@ -618,7 +626,7 @@ class SchedulingEngineService:
             query_overrides = select(AvailabilityOverride).where(
                 and_(
                     AvailabilityOverride.staff_id == staff.id,
-                    AvailabilityOverride.is_active == True,
+                    AvailabilityOverride.is_active is True,
                     or_(
                         and_(
                             AvailabilityOverride.start_datetime >= query.start_date,
@@ -642,7 +650,11 @@ class SchedulingEngineService:
                 result["availability_overrides"].append(
                     {
                         "uuid": str(override.uuid),
-                        "type": override.override_type.value if hasattr(override.override_type, 'value') else str(override.override_type),
+                        "type": (
+                            override.override_type.value
+                            if hasattr(override.override_type, "value")
+                            else str(override.override_type)
+                        ),
                         "start_datetime": override.start_datetime.isoformat(),
                         "end_datetime": override.end_datetime.isoformat(),
                         "title": override.title,

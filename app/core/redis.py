@@ -1,6 +1,7 @@
-import redis.asyncio as redis
 import json
 from typing import Any, Optional
+
+import redis.asyncio as redis
 import structlog
 
 from app.core.config import settings

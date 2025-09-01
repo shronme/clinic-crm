@@ -1,9 +1,10 @@
-from typing import Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from sqlalchemy.exc import IntegrityError
-import structlog
+from typing import Optional
 from uuid import UUID
+
+import structlog
+from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.business import Business
 from app.schemas.business import BusinessCreate, BusinessUpdate
@@ -53,7 +54,7 @@ class BusinessService:
             logger.error(
                 "Failed to create business due to integrity constraint", error=str(e)
             )
-            raise ValueError("Business with this name may already exist")
+            raise ValueError("Business with this name may already exist") from e
         except Exception as e:
             await db.rollback()
             logger.error("Failed to create business", error=str(e))
@@ -107,13 +108,13 @@ class BusinessService:
         skip: int = 0,
         limit: int = 100,
         active_only: bool = True,
-    ) -> List[Business]:
+    ) -> list[Business]:
         """Get list of businesses with pagination."""
         try:
             query = select(Business)
 
             if active_only:
-                query = query.where(Business.is_active == True)
+                query = query.where(Business.is_active is True)
 
             query = query.offset(skip).limit(limit).order_by(Business.created_at.desc())
 
@@ -180,7 +181,7 @@ class BusinessService:
                 business_id=business_id,
                 error=str(e),
             )
-            raise ValueError("Update failed due to constraint violation")
+            raise ValueError("Update failed due to constraint violation") from e
         except Exception as e:
             await db.rollback()
             logger.error(
@@ -239,7 +240,7 @@ class BusinessService:
                 business_uuid=business_uuid,
                 error=str(e),
             )
-            raise ValueError("Update failed due to constraint violation")
+            raise ValueError("Update failed due to constraint violation") from e
         except Exception as e:
             await db.rollback()
             logger.error(

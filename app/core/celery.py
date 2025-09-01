@@ -1,5 +1,5 @@
-from celery import Celery
 import structlog
+from celery import Celery
 
 from app.core.config import settings
 

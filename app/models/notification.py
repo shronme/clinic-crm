@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, DateTime
+import uuid
+
+from sqlalchemy import Column, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+
 from app.core.database import Base
-import uuid
 
 
 class Notification(Base):

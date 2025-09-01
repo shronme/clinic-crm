@@ -1,18 +1,20 @@
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Text,
-    Boolean,
-    ForeignKey,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from app.core.database import Base
 import enum
 import uuid
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
 
 
 class StaffRole(enum.Enum):
@@ -72,4 +74,7 @@ class Staff(Base):
     )
 
     def __repr__(self):
-        return f"<Staff(id={self.id}, name='{self.name}', role={self.role}, bookable={self.is_bookable})>"
+        return (
+            f"<Staff(id={self.id}, name='{self.name}', role={self.role}, "
+            f"bookable={self.is_bookable})>"
+        )

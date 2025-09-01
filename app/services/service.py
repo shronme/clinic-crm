@@ -1,20 +1,21 @@
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select
+
 from fastapi import HTTPException
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.service import Service
-from app.models.service_category import ServiceCategory
 from app.models.service_addon import ServiceAddon
+from app.models.service_category import ServiceCategory
 from app.models.staff_service import StaffService
 from app.schemas.service import (
-    ServiceCreate,
-    ServiceUpdate,
-    ServiceCategoryCreate,
-    ServiceCategoryUpdate,
     ServiceAddonCreate,
     ServiceAddonUpdate,
+    ServiceCategoryCreate,
+    ServiceCategoryUpdate,
+    ServiceCreate,
+    ServiceUpdate,
     StaffServiceCreate,
     StaffServiceUpdate,
 )
@@ -26,7 +27,7 @@ class ServiceCategoryService:
     @staticmethod
     async def get_categories(
         db: AsyncSession, business_id: int, parent_id: Optional[int] = None
-    ) -> List[ServiceCategory]:
+    ) -> list[ServiceCategory]:
         """Get service categories, optionally filtered by parent."""
         stmt = select(ServiceCategory).filter(
             ServiceCategory.business_id == business_id
@@ -233,7 +234,7 @@ class ServiceManagementService:
         business_id: int,
         category_id: Optional[int] = None,
         is_active: Optional[bool] = None,
-    ) -> List[Service]:
+    ) -> list[Service]:
         """Get services, optionally filtered by category and status."""
         stmt = select(Service).filter(Service.business_id == business_id)
         if category_id is not None:
@@ -398,7 +399,7 @@ class ServiceAddonService:
     @staticmethod
     async def get_addons(
         db: AsyncSession, business_id: int, service_id: Optional[int] = None
-    ) -> List[ServiceAddon]:
+    ) -> list[ServiceAddon]:
         """Get service add-ons, optionally filtered by service."""
         stmt = select(ServiceAddon).filter(ServiceAddon.business_id == business_id)
         if service_id is not None:
@@ -527,7 +528,7 @@ class StaffServiceMappingService:
         db: AsyncSession,
         staff_id: Optional[int] = None,
         service_id: Optional[int] = None,
-    ) -> List[StaffService]:
+    ) -> list[StaffService]:
         """Get staff-service mappings."""
         stmt = select(StaffService)
         if staff_id is not None:

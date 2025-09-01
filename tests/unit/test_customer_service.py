@@ -1,18 +1,18 @@
 """Unit tests for Customer service layer."""
 
-import pytest
 import base64
-from datetime import date, datetime
-from unittest.mock import AsyncMock
+from datetime import date
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.customer import Customer, CustomerStatus
 from app.models.business import Business
+from app.models.customer import Customer, CustomerStatus
 from app.schemas.customer import (
     CustomerCreate,
-    CustomerUpdate,
-    CustomerSearch,
     CustomerCSVImport,
+    CustomerSearch,
+    CustomerUpdate,
 )
 from app.services.customer import customer_service
 
@@ -30,9 +30,7 @@ class TestCustomerService:
         return business
 
     @pytest.fixture
-    async def sample_customer(
-        self, db: AsyncSession, sample_business: Business
-    ):
+    async def sample_customer(self, db: AsyncSession, sample_business: Business):
         """Create a sample customer for testing."""
         customer = Customer(
             business_id=sample_business.id,
@@ -47,9 +45,7 @@ class TestCustomerService:
         await db.refresh(customer)
         return customer
 
-    async def test_create_customer(
-        self, db: AsyncSession, sample_business: Business
-    ):
+    async def test_create_customer(self, db: AsyncSession, sample_business: Business):
         """Test creating a new customer."""
         customer_data = CustomerCreate(
             first_name="Jane",
@@ -84,9 +80,7 @@ class TestCustomerService:
         )
 
         # Create first customer
-        await customer_service.create_customer(
-            db, customer_data, sample_business.id
-        )
+        await customer_service.create_customer(db, customer_data, sample_business.id)
 
         # Attempt to create second customer with same email should fail
         duplicate_data = CustomerCreate(
@@ -125,9 +119,7 @@ class TestCustomerService:
 
         assert found_customer is None
 
-    async def test_get_customers(
-        self, db: AsyncSession, sample_business: Business
-    ):
+    async def test_get_customers(self, db: AsyncSession, sample_business: Business):
         """Test retrieving customers with pagination."""
         # Create multiple customers
         customers_data = [
@@ -364,9 +356,7 @@ class TestCustomerService:
 
         await db.commit()
 
-        stats = await customer_service.get_customer_stats(
-            db, sample_business.id
-        )
+        stats = await customer_service.get_customer_stats(db, sample_business.id)
 
         assert stats.total_customers >= 5
         assert stats.active_customers >= 2

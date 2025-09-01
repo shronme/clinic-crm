@@ -1,7 +1,8 @@
-from datetime import datetime, time
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from datetime import datetime
 from enum import Enum
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
 
 
 class AvailabilityStatus(str, Enum):
@@ -28,8 +29,8 @@ class AvailabilitySlot(BaseModel):
     status: AvailabilityStatus
     staff_uuid: str
     service_uuid: Optional[str] = None
-    conflicts: List[ConflictType] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    conflicts: list[ConflictType] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class StaffAvailabilityQuery(BaseModel):
@@ -55,13 +56,13 @@ class AppointmentValidationRequest(BaseModel):
     service_uuid: str
     requested_datetime: datetime
     customer_uuid: Optional[str] = None
-    addon_uuids: List[str] = Field(default_factory=list)
+    addon_uuids: list[str] = Field(default_factory=list)
 
 
 class AppointmentValidationResponse(BaseModel):
     is_valid: bool
-    conflicts: List[SchedulingConflict] = Field(default_factory=list)
-    alternative_slots: List[AvailabilitySlot] = Field(default_factory=list)
+    conflicts: list[SchedulingConflict] = Field(default_factory=list)
+    alternative_slots: list[AvailabilitySlot] = Field(default_factory=list)
     total_duration_minutes: int
     estimated_end_time: datetime
 

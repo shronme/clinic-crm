@@ -1,18 +1,20 @@
+import uuid
+
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Text,
     Boolean,
+    Column,
+    DateTime,
     ForeignKey,
+    Integer,
     Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.core.database import Base
-import uuid
 
 
 class StaffService(Base):
