@@ -86,17 +86,17 @@ class Appointment(AppointmentBase):
     estimated_end_datetime: datetime
     actual_start_datetime: Optional[datetime] = None
     actual_end_datetime: Optional[datetime] = None
-    
+
     # Booking details
     booked_by_staff_id: Optional[int] = None
     booking_source: BookingSourceSchema
-    
+
     # Pricing and payment
     deposit_required: bool
     deposit_amount: Optional[Decimal] = None
     deposit_paid: bool
     deposit_paid_at: Optional[datetime] = None
-    
+
     # Cancellation details
     is_cancelled: bool
     cancelled_at: Optional[datetime] = None
@@ -104,30 +104,30 @@ class Appointment(AppointmentBase):
     cancellation_reason: Optional[CancellationReason] = None
     cancellation_notes: Optional[str] = None
     cancellation_fee: Optional[Decimal] = None
-    
+
     # Rescheduling details
     original_appointment_id: Optional[int] = None
     rescheduled_from_datetime: Optional[datetime] = None
     reschedule_count: int
-    
+
     # No-show details
     is_no_show: bool
     no_show_fee: Optional[Decimal] = None
-    
+
     # Communication
     reminder_sent_at: Optional[datetime] = None
     confirmation_sent_at: Optional[datetime] = None
-    
+
     # Slot locking
     slot_locked: bool
     slot_locked_at: Optional[datetime] = None
     slot_lock_expires_at: Optional[datetime] = None
     locked_by_session_id: Optional[str] = None
-    
+
     # Timestamps
     created_at: datetime
     updated_at: datetime
-    
+
     # Computed properties
     is_active: bool
     time_until_appointment: Optional[timedelta] = None
@@ -194,7 +194,10 @@ class AppointmentSearch(BaseModel):
     filters: AppointmentFilters = Field(default_factory=AppointmentFilters)
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
-    sort_by: str = Field("scheduled_datetime", pattern=r"^(scheduled_datetime|created_at|status|customer_name|staff_name|total_price)$")
+    sort_by: str = Field(
+        "scheduled_datetime",
+        pattern=r"^(scheduled_datetime|created_at|status|customer_name|staff_name|total_price)$",
+    )
     sort_order: str = Field("asc", pattern=r"^(asc|desc)$")
 
 
@@ -276,7 +279,8 @@ class BusinessSummary(BaseModel):
 class CustomerSummary(BaseModel):
     id: int
     uuid: UUID
-    name: str
+    first_name: str
+    last_name: str
 
     class Config:
         from_attributes = True

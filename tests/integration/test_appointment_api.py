@@ -30,11 +30,13 @@ async def test_business(db):
 
 
 @pytest.fixture
-async def test_customer(db):
+async def test_customer(db, test_business):
     """Create test customer."""
     customer = Customer(
         uuid=uuid4(),
-        name="John Doe",
+        business_id=test_business.id,
+        first_name="John",
+        last_name="Doe",
     )
     db.add(customer)
     await db.flush()
@@ -46,8 +48,9 @@ async def test_customer(db):
 async def test_business_working_hours(db, test_business):
     """Create business working hours (Monday-Sunday 9-17)."""
     from datetime import time
+
     working_hours = []
-    
+
     # Create working hours for all days of the week to support dynamic appointment dates
     for day in WeekDay:
         day_hours = WorkingHours(
@@ -56,12 +59,12 @@ async def test_business_working_hours(db, test_business):
             owner_id=test_business.id,
             weekday=day.name,
             start_time=time(9, 0),  # 9:00 AM
-            end_time=time(17, 0),   # 5:00 PM
+            end_time=time(17, 0),  # 5:00 PM
             is_active=True,
         )
         working_hours.append(day_hours)
         db.add(day_hours)
-    
+
     await db.flush()
     return working_hours
 
@@ -86,8 +89,9 @@ async def test_staff(db, test_business):
 async def test_staff_working_hours(db, test_staff):
     """Create staff working hours (Monday-Sunday 9-17)."""
     from datetime import time
+
     working_hours = []
-    
+
     # Create working hours for all days of the week to support dynamic appointment dates
     for day in WeekDay:
         day_hours = WorkingHours(
@@ -96,12 +100,12 @@ async def test_staff_working_hours(db, test_staff):
             owner_id=test_staff.id,
             weekday=day.name,
             start_time=time(9, 0),  # 9:00 AM
-            end_time=time(17, 0),   # 5:00 PM
+            end_time=time(17, 0),  # 5:00 PM
             is_active=True,
         )
         working_hours.append(day_hours)
         db.add(day_hours)
-    
+
     await db.flush()
     return working_hours
 
@@ -114,7 +118,7 @@ async def test_service(db, test_business):
         name="Haircut",
         business_id=test_business.id,
         duration_minutes=30,
-        price=Decimal('50.00'),
+        price=Decimal("50.00"),
         buffer_before_minutes=5,
         buffer_after_minutes=5,
     )
@@ -128,11 +132,12 @@ async def test_service(db, test_business):
 async def test_appointment(db, test_business, test_customer, test_staff, test_service):
     """Create test appointment."""
     from datetime import timezone
+
     # Schedule appointment for tomorrow at 2 PM
     future_date = datetime.now(timezone.utc) + timedelta(days=2)
     scheduled_time = future_date.replace(hour=14, minute=0, second=0, microsecond=0)
     estimated_end = scheduled_time + timedelta(minutes=30)
-    
+
     appointment = Appointment(
         uuid=uuid4(),
         business_id=test_business.id,
@@ -142,7 +147,7 @@ async def test_appointment(db, test_business, test_customer, test_staff, test_se
         scheduled_datetime=scheduled_time,
         estimated_end_datetime=estimated_end,
         duration_minutes=30,
-        total_price=Decimal('50.00'),
+        total_price=Decimal("50.00"),
         status=AppointmentStatus.TENTATIVE.value,
         booking_source="admin",
     )
@@ -162,10 +167,10 @@ def client():
 def mock_current_business(test_business):
     """Mock current business dependency."""
     from app.api.deps.business import get_business_from_header, BusinessContext
-    
+
     async def _mock_current_business():
         return BusinessContext(test_business)
-    
+
     app.dependency_overrides[get_business_from_header] = _mock_current_business
     yield test_business
     app.dependency_overrides.clear()
@@ -185,7 +190,7 @@ class TestAppointmentAPICreate:
         test_service,
         test_business_working_hours,
         test_staff_working_hours,
-        mock_current_business
+        mock_current_business,
     ):
         """Test successful appointment creation."""
         appointment_data = {
@@ -198,10 +203,12 @@ class TestAppointmentAPICreate:
             "booking_source": "admin",
             "customer_notes": "First visit",
         }
-        
+
         headers = {"X-Business-ID": str(test_business.id)}
-        response = await client.post("/api/v1/appointments/", json=appointment_data, headers=headers)
-        
+        response = await client.post(
+            "/api/v1/appointments/", json=appointment_data, headers=headers
+        )
+
         assert response.status_code == 201
         data = response.json()
         assert data["customer_id"] == test_customer.id
@@ -222,7 +229,7 @@ class TestAppointmentAPICreate:
         test_service,
         test_business_working_hours,
         test_staff_working_hours,
-        mock_current_business
+        mock_current_business,
     ):
         """Test appointment creation with slot locking."""
         appointment_data = {
@@ -234,15 +241,15 @@ class TestAppointmentAPICreate:
             "total_price": "50.00",
             "booking_source": "online",
         }
-        
+
         session_id = "test_session_123"
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.post(
             f"/api/v1/appointments/?session_id={session_id}",
             json=appointment_data,
-            headers=headers
+            headers=headers,
         )
-        
+
         assert response.status_code == 201
         data = response.json()
         assert data["slot_locked"] is True
@@ -250,25 +257,23 @@ class TestAppointmentAPICreate:
 
     @pytest.mark.asyncio
     async def test_create_appointment_validation_error(
-        self,
-        client: AsyncClient,
-        db,
-        test_business,
-        mock_current_business
+        self, client: AsyncClient, db, test_business, mock_current_business
     ):
         """Test appointment creation with validation errors."""
         appointment_data = {
             "customer_id": 999,  # Non-existent customer
-            "staff_id": 999,     # Non-existent staff
-            "service_id": 999,   # Non-existent service
+            "staff_id": 999,  # Non-existent staff
+            "service_id": 999,  # Non-existent service
             "scheduled_datetime": "2024-01-16T14:00:00",
             "duration_minutes": 30,
             "total_price": "50.00",
         }
-        
+
         headers = {"X-Business-ID": str(test_business.id)}
-        response = await client.post("/api/v1/appointments/", json=appointment_data, headers=headers)
-        
+        response = await client.post(
+            "/api/v1/appointments/", json=appointment_data, headers=headers
+        )
+
         assert response.status_code == 400
         assert "not found" in response.json()["detail"].lower()
 
@@ -283,12 +288,12 @@ class TestAppointmentAPIRead:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test getting appointments list."""
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.get("/api/v1/appointments/", headers=headers)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total_count"] == 1
@@ -302,16 +307,17 @@ class TestAppointmentAPIRead:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test getting appointments with filters."""
         headers = {"X-Business-ID": str(test_business.id)}
         # Create additional appointment with different status
         from datetime import timezone
+
         future_date = datetime.now(timezone.utc) + timedelta(days=3)
         scheduled_time = future_date.replace(hour=15, minute=0, second=0, microsecond=0)
         estimated_end = scheduled_time + timedelta(minutes=30)
-        
+
         confirmed_appointment = Appointment(
             uuid=uuid4(),
             business_id=test_appointment.business_id,
@@ -321,16 +327,18 @@ class TestAppointmentAPIRead:
             scheduled_datetime=scheduled_time,
             estimated_end_datetime=estimated_end,
             duration_minutes=30,
-            total_price=Decimal('50.00'),
+            total_price=Decimal("50.00"),
             status=AppointmentStatus.CONFIRMED.value,
             booking_source="admin",
         )
         db.add(confirmed_appointment)
         await db.flush()
-        
+
         # Filter by status
-        response = await client.get("/api/v1/appointments/?status=confirmed", headers=headers)
-        
+        response = await client.get(
+            "/api/v1/appointments/?status=confirmed", headers=headers
+        )
+
         assert response.status_code == 200
         data = response.json()
         assert data["total_count"] == 1
@@ -343,12 +351,12 @@ class TestAppointmentAPIRead:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test getting appointments with search query."""
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.get("/api/v1/appointments/?query=John", headers=headers)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total_count"] >= 0  # May find appointments depending on setup
@@ -360,12 +368,14 @@ class TestAppointmentAPIRead:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test appointments pagination."""
         headers = {"X-Business-ID": str(test_business.id)}
-        response = await client.get("/api/v1/appointments/?page=1&page_size=10", headers=headers)
-        
+        response = await client.get(
+            "/api/v1/appointments/?page=1&page_size=10", headers=headers
+        )
+
         assert response.status_code == 200
         data = response.json()
         assert data["page"] == 1
@@ -379,12 +389,14 @@ class TestAppointmentAPIRead:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test getting single appointment by UUID."""
         headers = {"X-Business-ID": str(test_business.id)}
-        response = await client.get(f"/api/v1/appointments/{test_appointment.uuid}", headers=headers)
-        
+        response = await client.get(
+            f"/api/v1/appointments/{test_appointment.uuid}", headers=headers
+        )
+
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == test_appointment.id
@@ -395,17 +407,15 @@ class TestAppointmentAPIRead:
 
     @pytest.mark.asyncio
     async def test_get_appointment_not_found(
-        self,
-        client: AsyncClient,
-        db,
-        test_business,
-        mock_current_business
+        self, client: AsyncClient, db, test_business, mock_current_business
     ):
         """Test getting non-existent appointment."""
         fake_uuid = uuid4()
         headers = {"X-Business-ID": str(test_business.id)}
-        response = await client.get(f"/api/v1/appointments/{fake_uuid}", headers=headers)
-        
+        response = await client.get(
+            f"/api/v1/appointments/{fake_uuid}", headers=headers
+        )
+
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -420,7 +430,7 @@ class TestAppointmentAPIUpdate:
         db,
         test_business,
         test_appointment,
-        mock_current_business
+        mock_current_business,
     ):
         """Test successful appointment update."""
         update_data = {
@@ -428,14 +438,14 @@ class TestAppointmentAPIUpdate:
             "customer_notes": "Updated notes",
             "internal_notes": "Staff notes updated",
         }
-        
+
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.put(
             f"/api/v1/appointments/{test_appointment.uuid}",
             json=update_data,
-            headers=headers
+            headers=headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total_price"] == "60.00"
@@ -451,26 +461,27 @@ class TestAppointmentAPIUpdate:
         test_appointment,
         test_business_working_hours,
         test_staff_working_hours,
-        mock_current_business
+        mock_current_business,
     ):
         """Test appointment rescheduling."""
         # Use a future date for rescheduling
         from datetime import timezone
+
         future_date = datetime.now(timezone.utc) + timedelta(days=4)
         new_time = future_date.replace(hour=10, minute=0, second=0, microsecond=0)
         new_datetime = new_time.strftime("%Y-%m-%dT%H:%M:%S")
-        
+
         update_data = {
             "scheduled_datetime": new_datetime,
         }
-        
+
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.put(
             f"/api/v1/appointments/{test_appointment.uuid}",
             json=update_data,
-            headers=headers
+            headers=headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # Check that the appointment was rescheduled (exact format may vary due to timezone conversions)
@@ -481,17 +492,16 @@ class TestAppointmentAPIUpdate:
 
     @pytest.mark.asyncio
     async def test_update_appointment_not_found(
-        self,
-        client: AsyncClient,
-        db,
-        mock_current_business
+        self, client: AsyncClient, db, mock_current_business
     ):
         """Test updating non-existent appointment."""
         fake_uuid = uuid4()
         update_data = {"total_price": "60.00"}
-        
-        response = await client.put(f"/api/v1/appointments/{fake_uuid}", json=update_data)
-        
+
+        response = await client.put(
+            f"/api/v1/appointments/{fake_uuid}", json=update_data
+        )
+
         assert response.status_code == 404
 
 
@@ -500,23 +510,18 @@ class TestAppointmentAPIStatusTransitions:
 
     @pytest.mark.asyncio
     async def test_transition_status_confirm(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test confirming appointment."""
         transition_data = {
             "new_status": "confirmed",
             "notes": "Customer called to confirm",
         }
-        
+
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status",
-            json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "confirmed"
@@ -524,29 +529,24 @@ class TestAppointmentAPIStatusTransitions:
 
     @pytest.mark.asyncio
     async def test_transition_status_cancel_with_reason(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test cancelling appointment with reason and fee."""
         # First confirm the appointment
         test_appointment.status = AppointmentStatus.CONFIRMED.value
         await db.flush()
-        
+
         transition_data = {
             "new_status": "cancelled",
             "notes": "Customer requested cancellation",
             "cancellation_reason": "customer_request",
             "cancellation_fee": "15.00",
         }
-        
+
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status",
-            json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "cancelled"
@@ -556,26 +556,21 @@ class TestAppointmentAPIStatusTransitions:
 
     @pytest.mark.asyncio
     async def test_transition_status_invalid_transition(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test invalid status transition."""
         # Try to transition completed appointment to confirmed
         test_appointment.status = AppointmentStatus.COMPLETED.value
         await db.flush()
-        
+
         transition_data = {
             "new_status": "confirmed",
         }
-        
+
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status",
-            json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
         )
-        
+
         assert response.status_code == 400
         assert "Cannot transition from" in response.json()["detail"]
 
@@ -588,28 +583,29 @@ class TestAppointmentAPIStatusTransitions:
         test_appointment,
         test_business_working_hours,
         test_staff_working_hours,
-        mock_current_business
+        mock_current_business,
     ):
         """Test appointment rescheduling endpoint."""
         # Use a future date for rescheduling
         from datetime import timezone
+
         future_date = datetime.now(timezone.utc) + timedelta(days=5)
         new_time = future_date.replace(hour=15, minute=0, second=0, microsecond=0)
         new_scheduled_datetime = new_time.strftime("%Y-%m-%dT%H:%M:%S")
-        
+
         reschedule_data = {
             "new_scheduled_datetime": new_scheduled_datetime,
             "reason": "Customer requested different time",
             "notify_customer": True,
         }
-        
+
         headers = {"X-Business-ID": str(test_business.id)}
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/reschedule",
             json=reschedule_data,
-            headers=headers
+            headers=headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # Check that the appointment was rescheduled (exact format may vary due to timezone conversions)
@@ -625,44 +621,35 @@ class TestAppointmentAPISlotLocking:
 
     @pytest.mark.asyncio
     async def test_lock_appointment_slot(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test locking appointment slot."""
         lock_data = {
             "session_id": "test_session_123",
             "lock_duration_minutes": 20,
         }
-        
+
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/lock",
-            json=lock_data
+            f"/api/v1/appointments/{test_appointment.uuid}/lock", json=lock_data
         )
-        
+
         assert response.status_code == 200
         assert "locked successfully" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_unlock_appointment_slot(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test unlocking appointment slot."""
         # First lock the slot
         test_appointment.slot_locked = True
         test_appointment.locked_by_session_id = "test_session_123"
         await db.flush()
-        
+
         response = await client.delete(
             f"/api/v1/appointments/{test_appointment.uuid}/lock?session_id=test_session_123"
         )
-        
+
         assert response.status_code == 200
         assert "unlocked successfully" in response.json()["message"]
 
@@ -672,56 +659,46 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_check_cancellation_policy_can_cancel(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test cancellation policy check when appointment can be cancelled."""
         # Set appointment far enough in future
         future_datetime = datetime.utcnow() + timedelta(days=2)
         test_appointment.scheduled_datetime = future_datetime
         await db.flush()
-        
+
         check_data = {
             "appointment_uuid": str(test_appointment.uuid),
             "current_time": datetime.utcnow().isoformat(),
         }
-        
+
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy",
-            json=check_data
+            "/api/v1/appointments/check-cancellation-policy", json=check_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["can_cancel"] is True
 
     @pytest.mark.asyncio
     async def test_check_cancellation_policy_cannot_cancel(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test cancellation policy check when appointment cannot be cancelled."""
         # Set appointment soon (within cancellation window)
         near_datetime = datetime.utcnow() + timedelta(hours=2)
         test_appointment.scheduled_datetime = near_datetime
         await db.flush()
-        
+
         check_data = {
             "appointment_uuid": str(test_appointment.uuid),
             "current_time": datetime.utcnow().isoformat(),
         }
-        
+
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy",
-            json=check_data
+            "/api/v1/appointments/check-cancellation-policy", json=check_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["can_cancel"] is False
@@ -729,11 +706,7 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_check_appointment_conflicts(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test appointment conflict checking."""
         check_data = {
@@ -741,12 +714,11 @@ class TestAppointmentAPIUtilities:
             "scheduled_datetime": "2024-01-16T14:15:00",  # Overlaps with existing
             "duration_minutes": 30,
         }
-        
+
         response = await client.post(
-            "/api/v1/appointments/check-conflicts",
-            json=check_data
+            "/api/v1/appointments/check-conflicts", json=check_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "has_conflict" in data
@@ -755,11 +727,7 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_bulk_status_update(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test bulk appointment status update."""
         # Create additional appointment
@@ -772,28 +740,24 @@ class TestAppointmentAPIUtilities:
             scheduled_datetime=datetime(2024, 1, 17, 14, 0, 0),
             estimated_end_datetime=datetime(2024, 1, 17, 14, 30, 0),
             duration_minutes=30,
-            total_price=Decimal('50.00'),
+            total_price=Decimal("50.00"),
             status=AppointmentStatus.TENTATIVE.value,
             booking_source="admin",
         )
         db.add(appointment2)
         await db.flush()
-        
+
         bulk_data = {
-            "appointment_uuids": [
-                str(test_appointment.uuid),
-                str(appointment2.uuid)
-            ],
+            "appointment_uuids": [str(test_appointment.uuid), str(appointment2.uuid)],
             "new_status": "confirmed",
             "notes": "Bulk confirmation",
             "notify_customers": True,
         }
-        
+
         response = await client.post(
-            "/api/v1/appointments/bulk-status-update",
-            json=bulk_data
+            "/api/v1/appointments/bulk-status-update", json=bulk_data
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data["successful_updates"]) <= 2  # May have some failures
@@ -801,11 +765,7 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_get_appointment_stats(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test getting appointment statistics."""
         # Create appointments with different statuses
@@ -818,15 +778,15 @@ class TestAppointmentAPIUtilities:
             scheduled_datetime=datetime(2024, 1, 15, 14, 0, 0),
             estimated_end_datetime=datetime(2024, 1, 15, 14, 30, 0),
             duration_minutes=30,
-            total_price=Decimal('75.00'),
+            total_price=Decimal("75.00"),
             status=AppointmentStatus.COMPLETED.value,
             booking_source="admin",
         )
         db.add(completed_appointment)
         await db.flush()
-        
+
         response = await client.get("/api/v1/appointments/analytics/stats")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "total_appointments" in data
@@ -842,18 +802,14 @@ class TestAppointmentAPIDelete:
 
     @pytest.mark.asyncio
     async def test_delete_appointment(
-        self,
-        client: AsyncClient,
-        db,
-        test_appointment,
-        mock_current_business
+        self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test deleting appointment (soft delete by cancellation)."""
         response = await client.delete(f"/api/v1/appointments/{test_appointment.uuid}")
-        
+
         assert response.status_code == 200
         assert "deleted successfully" in response.json()["message"]
-        
+
         # Verify appointment was cancelled, not actually deleted
         await db.refresh(test_appointment)
         assert test_appointment.status == AppointmentStatus.CANCELLED.value
@@ -861,14 +817,11 @@ class TestAppointmentAPIDelete:
 
     @pytest.mark.asyncio
     async def test_delete_appointment_not_found(
-        self,
-        client: AsyncClient,
-        db,
-        mock_current_business
+        self, client: AsyncClient, db, mock_current_business
     ):
         """Test deleting non-existent appointment."""
         fake_uuid = uuid4()
         response = await client.delete(f"/api/v1/appointments/{fake_uuid}")
-        
+
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()

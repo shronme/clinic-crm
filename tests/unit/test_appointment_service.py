@@ -58,7 +58,9 @@ def sample_customer():
     return Customer(
         id=1,
         uuid=uuid4(),
-        name="John Doe",
+        business_id=1,
+        first_name="John",
+        last_name="Doe",
     )
 
 
@@ -123,7 +125,7 @@ class TestAppointmentServiceCreate:
             sample_staff,  # Staff check
             sample_service,  # Service check
         ]
-        
+
         # Mock the helper methods to avoid complex async chaining
         with patch.object(
             appointment_service, "_get_customer_by_id", return_value=sample_customer
@@ -132,7 +134,9 @@ class TestAppointmentServiceCreate:
                 appointment_service, "_get_staff_by_id", return_value=sample_staff
             ):
                 with patch.object(
-                    appointment_service, "_get_service_by_id", return_value=sample_service
+                    appointment_service,
+                    "_get_service_by_id",
+                    return_value=sample_service,
                 ):
                     # Mock scheduling validation
                     with patch.object(
@@ -146,7 +150,9 @@ class TestAppointmentServiceCreate:
                         )
 
                         assert result is not None
-                        assert result.customer_id == sample_appointment_create.customer_id
+                        assert (
+                            result.customer_id == sample_appointment_create.customer_id
+                        )
                         assert result.staff_id == sample_appointment_create.staff_id
                         assert result.service_id == sample_appointment_create.service_id
                         assert result.status == AppointmentStatus.TENTATIVE.value
@@ -173,7 +179,7 @@ class TestAppointmentServiceCreate:
             sample_staff,
             sample_service,
         ]
-        
+
         # Mock the helper methods
         with patch.object(
             appointment_service, "_get_customer_by_id", return_value=sample_customer
@@ -182,7 +188,9 @@ class TestAppointmentServiceCreate:
                 appointment_service, "_get_staff_by_id", return_value=sample_staff
             ):
                 with patch.object(
-                    appointment_service, "_get_service_by_id", return_value=sample_service
+                    appointment_service,
+                    "_get_service_by_id",
+                    return_value=sample_service,
                 ):
                     # Mock scheduling validation failure
                     with patch.object(
@@ -191,8 +199,12 @@ class TestAppointmentServiceCreate:
                         mock_validate.return_value.is_valid = False
                         mock_validate.return_value.conflicts = ["Staff unavailable"]
 
-                        with pytest.raises(ValueError, match="Appointment validation failed"):
-                            await appointment_service.create_appointment(sample_appointment_create)
+                        with pytest.raises(
+                            ValueError, match="Appointment validation failed"
+                        ):
+                            await appointment_service.create_appointment(
+                                sample_appointment_create
+                            )
 
     @pytest.mark.asyncio
     async def test_create_appointment_missing_business(
@@ -229,7 +241,7 @@ class TestAppointmentServiceCreate:
             sample_staff,
             sample_service,
         ]
-        
+
         # Mock the helper methods
         with patch.object(
             appointment_service, "_get_customer_by_id", return_value=sample_customer
@@ -238,7 +250,9 @@ class TestAppointmentServiceCreate:
                 appointment_service, "_get_staff_by_id", return_value=sample_staff
             ):
                 with patch.object(
-                    appointment_service, "_get_service_by_id", return_value=sample_service
+                    appointment_service,
+                    "_get_service_by_id",
+                    return_value=sample_service,
                 ):
                     # Mock scheduling validation
                     with patch.object(
@@ -289,7 +303,7 @@ class TestAppointmentServiceRead:
     ):
         """Test appointment retrieval when not found."""
         appointment_uuid = str(uuid4())
-        
+
         # Create a proper async mock result
         mock_result = Mock()  # Non-async mock for the result
         mock_result.scalar_one_or_none.return_value = None
