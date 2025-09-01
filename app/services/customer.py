@@ -541,7 +541,7 @@ class CustomerService:
 
             vip_customers_result = await db.execute(
                 select(func.count(Customer.id)).where(
-                    and_(Customer.business_id == business_id, Customer.is_vip is True)
+                    and_(Customer.business_id == business_id, Customer.is_vip)
                 )
             )
             vip_customers = vip_customers_result.scalar() or 0

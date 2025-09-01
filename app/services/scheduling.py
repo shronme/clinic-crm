@@ -266,7 +266,7 @@ class SchedulingEngineService:
                 WorkingHours.owner_type == OwnerType.BUSINESS.value,
                 WorkingHours.owner_id == business_id,
                 WorkingHours.weekday == weekday.name,
-                WorkingHours.is_active is True,
+                WorkingHours.is_active,
             )
         )
         result = await self.db.execute(query)
@@ -291,7 +291,7 @@ class SchedulingEngineService:
                 WorkingHours.owner_type == OwnerType.STAFF.value,
                 WorkingHours.owner_id == staff_id,
                 WorkingHours.weekday == weekday.name,
-                WorkingHours.is_active is True,
+                WorkingHours.is_active,
             )
         )
         result = await self.db.execute(query)
@@ -341,7 +341,7 @@ class SchedulingEngineService:
         query = select(AvailabilityOverride).where(
             and_(
                 AvailabilityOverride.staff_id == staff_id,
-                AvailabilityOverride.is_active is True,
+                AvailabilityOverride.is_active,
                 or_(
                     and_(
                         AvailabilityOverride.start_datetime <= start_time,
@@ -551,7 +551,7 @@ class SchedulingEngineService:
                     WorkingHours.owner_type == OwnerType.STAFF.value,
                     WorkingHours.owner_id == staff.id,
                     WorkingHours.weekday == weekday.name,
-                    WorkingHours.is_active is True,
+                    WorkingHours.is_active,
                 )
             )
             result_wh = await self.db.execute(query_wh)
@@ -626,7 +626,7 @@ class SchedulingEngineService:
             query_overrides = select(AvailabilityOverride).where(
                 and_(
                     AvailabilityOverride.staff_id == staff.id,
-                    AvailabilityOverride.is_active is True,
+                    AvailabilityOverride.is_active,
                     or_(
                         and_(
                             AvailabilityOverride.start_datetime >= query.start_date,
