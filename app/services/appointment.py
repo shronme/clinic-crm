@@ -719,8 +719,9 @@ class AppointmentService:
 
     async def _get_addons_by_ids(self, addon_ids: list[int], business_id: int) -> list:
         """Get service addons by their IDs."""
-        from app.models.service_addon import ServiceAddon
         from sqlalchemy import and_
+
+        from app.models.service_addon import ServiceAddon
 
         if not addon_ids:
             return []

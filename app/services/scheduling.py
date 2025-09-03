@@ -529,8 +529,9 @@ class SchedulingEngineService:
         if not addon_uuids:
             return 0
 
-        from app.models.service_addon import ServiceAddon
         from sqlalchemy import and_
+
+        from app.models.service_addon import ServiceAddon
 
         result = await self.db.execute(
             select(ServiceAddon.extra_duration_minutes).where(

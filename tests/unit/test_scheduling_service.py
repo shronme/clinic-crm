@@ -1,10 +1,24 @@
 """Test scheduling service with real database interactions."""
 
-import uuid
 from datetime import datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.appointment import Appointment, AppointmentStatus
+from app.models.business import Business
+from app.models.customer import Customer
+from app.models.service import Service
+from app.models.service_addon import ServiceAddon
+from app.models.staff import Staff, StaffRole
+from app.models.working_hours import OwnerType, WeekDay, WorkingHours
+from app.schemas.scheduling import (
+    AppointmentValidationRequest,
+    AvailabilityStatus,
+    ConflictType,
+    StaffAvailabilityQuery,
+)
+from app.services.scheduling import SchedulingEngineService
 
 
 def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> datetime:
@@ -20,26 +34,6 @@ def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> date
         target_datetime += timedelta(days=1)
 
     return target_datetime
-
-
-from app.models.appointment import Appointment, AppointmentStatus
-from app.models.availability_override import AvailabilityOverride, OverrideType
-from app.models.business import Business
-from app.models.customer import Customer
-from app.models.service import Service
-from app.models.service_addon import ServiceAddon
-from app.models.staff import Staff, StaffRole
-from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
-from app.models.working_hours import OwnerType, WeekDay, WorkingHours
-from app.schemas.scheduling import (
-    AppointmentValidationRequest,
-    AvailabilityStatus,
-    BusinessHoursQuery,
-    ConflictType,
-    SchedulingConflict,
-    StaffAvailabilityQuery,
-)
-from app.services.scheduling import SchedulingEngineService
 
 
 @pytest.fixture
@@ -588,7 +582,7 @@ class TestSchedulingEngineService:
         """Test staff availability query with service addons."""
         staff = scheduling_test_data["staff"]
         service = scheduling_test_data["service"]
-        addon1 = scheduling_test_data["addon1"]
+        scheduling_test_data["addon1"]
         scheduling_service = SchedulingEngineService(db)
 
         future_date = get_future_datetime(hour=9)
