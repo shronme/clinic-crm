@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import and_, or_, select
@@ -73,7 +73,9 @@ class SchedulingEngineService:
                     staff_uuid=query.staff_uuid,
                     service_uuid=query.service_uuid,
                     conflicts=conflicts,
-                    metadata={"checked_at": datetime.utcnow()},
+                    metadata={
+                        "checked_at": datetime.utcnow().replace(tzinfo=timezone.utc)
+                    },
                 )
                 slots.append(slot)
 
@@ -143,14 +145,42 @@ class SchedulingEngineService:
         service: Optional[Service] = None,
     ) -> tuple[AvailabilityStatus, list[ConflictType]]:
         """Check if a time slot is available for a staff member."""
-        conflicts = []
+        # Use the existing comprehensive validation method
+        if service:
+            scheduling_conflicts = await self._validate_scheduling_constraints(
+                staff, service, start_time, end_time
+            )
+            conflicts = [conflict.conflict_type for conflict in scheduling_conflicts]
+        else:
+            # For slots without a specific service, do basic availability checks
+            conflicts = []
 
-        # For now, return all slots as available to get basic functionality working
-        # TODO: Implement proper conflict checking with async database queries
+            # Check business working hours
+            if not await self._is_within_business_hours(
+                staff.business_id, start_time, end_time
+            ):
+                conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
 
-        # Basic business hours check (9 AM to 5 PM)
-        if start_time.hour < 9 or end_time.hour > 17:
-            conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
+            # Check staff working hours
+            if not await self._is_within_staff_working_hours(
+                staff.id, start_time, end_time
+            ):
+                conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
+
+            # Check for time off conflicts
+            if await self._has_time_off_conflict(staff.id, start_time, end_time):
+                conflicts.append(ConflictType.TIME_OFF)
+
+            # Check availability overrides
+            override_effect = await self._check_availability_overrides(
+                staff.id, start_time, end_time
+            )
+            if override_effect == "unavailable":
+                conflicts.append(ConflictType.AVAILABILITY_OVERRIDE)
+
+            # Check for existing appointment conflicts
+            if await self._has_appointment_conflict(staff.id, start_time, end_time):
+                conflicts.append(ConflictType.EXISTING_APPOINTMENT)
 
         # Determine status
         if conflicts:
@@ -372,10 +402,45 @@ class SchedulingEngineService:
         self, staff_id: int, start_time: datetime, end_time: datetime
     ) -> bool:
         """Check if time period conflicts with existing appointments."""
-        # TODO: Implement appointment conflict checking when appointment model is
-        # complete
-        # For now, assume no conflicts since appointments aren't fully implemented
-        return False
+        from app.models.appointment import Appointment, AppointmentStatus
+
+        # Query for active appointments that overlap with the requested time period
+        query = select(Appointment).where(
+            and_(
+                Appointment.staff_id == staff_id,
+                Appointment.is_cancelled
+                == False,  # Only check non-cancelled appointments
+                Appointment.status.in_(
+                    [
+                        AppointmentStatus.TENTATIVE.value,
+                        AppointmentStatus.CONFIRMED.value,
+                        AppointmentStatus.IN_PROGRESS.value,
+                    ]
+                ),
+                or_(
+                    # New appointment starts during existing appointment
+                    and_(
+                        Appointment.scheduled_datetime <= start_time,
+                        Appointment.estimated_end_datetime > start_time,
+                    ),
+                    # New appointment ends during existing appointment
+                    and_(
+                        Appointment.scheduled_datetime < end_time,
+                        Appointment.estimated_end_datetime >= end_time,
+                    ),
+                    # New appointment completely contains existing appointment
+                    and_(
+                        Appointment.scheduled_datetime >= start_time,
+                        Appointment.estimated_end_datetime <= end_time,
+                    ),
+                ),
+            )
+        )
+
+        result = await self.db.execute(query)
+        conflicting_appointment = result.scalar_one_or_none()
+
+        return conflicting_appointment is not None
 
     async def _check_lead_time_policy(
         self, business_id: int, service: Service, requested_time: datetime
@@ -399,7 +464,7 @@ class SchedulingEngineService:
         if min_lead_time_hours <= 0:
             return True
 
-        now = datetime.utcnow()
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
         min_booking_time = now + timedelta(hours=min_lead_time_hours)
 
         return requested_time >= min_booking_time
@@ -423,7 +488,7 @@ class SchedulingEngineService:
         if max_advance_days is None:
             return True  # No limit
 
-        now = datetime.utcnow()
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
         max_booking_time = now + timedelta(days=max_advance_days)
 
         return requested_time <= max_booking_time

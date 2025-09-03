@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -123,8 +123,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/availability",
                 params={
                     "staff_uuid": str(staff.uuid),
-                    "start_datetime": "2024-01-15T09:00:00",  # Monday 9 AM
-                    "end_datetime": "2024-01-15T17:00:00",  # Monday 5 PM
+                    "start_datetime": "2024-01-15T09:00:00+00:00",  # Monday 9 AM
+                    "end_datetime": "2024-01-15T17:00:00+00:00",  # Monday 5 PM
                     "slot_duration_minutes": 30,
                 },
             )
@@ -155,8 +155,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/availability",
                 params={
                     "staff_uuid": str(staff.uuid),
-                    "start_datetime": "2024-01-15T09:00:00",
-                    "end_datetime": "2024-01-15T17:00:00",
+                    "start_datetime": "2024-01-15T09:00:00+00:00",
+                    "end_datetime": "2024-01-15T17:00:00+00:00",
                     "service_uuid": str(service.uuid),
                     "slot_duration_minutes": 40,  # Service total duration
                 },
@@ -181,8 +181,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/availability",
                 params={
                     "staff_uuid": "12345678-1234-1234-1234-123456789999",
-                    "start_datetime": "2024-01-15T09:00:00",
-                    "end_datetime": "2024-01-15T17:00:00",
+                    "start_datetime": "2024-01-15T09:00:00+00:00",
+                    "end_datetime": "2024-01-15T17:00:00+00:00",
                     "slot_duration_minutes": 30,
                 },
             )
@@ -200,7 +200,9 @@ class TestSchedulingAPIEndpoints:
         service = setup_test_data["service"]
 
         # Request appointment 3 hours in future (meets lead time)
-        future_time = datetime.utcnow() + timedelta(hours=3)
+        future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(
+            hours=3
+        )
         # Make sure it's a weekday and within working hours
         if future_time.weekday() >= 5:  # Weekend
             future_time += timedelta(days=2)  # Move to Monday
@@ -237,7 +239,9 @@ class TestSchedulingAPIEndpoints:
         service = setup_test_data["service"]
 
         # Request appointment in 30 minutes (violates 1-hour lead time)
-        future_time = datetime.utcnow() + timedelta(minutes=30)
+        future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(
+            minutes=30
+        )
         if future_time.weekday() >= 5:  # Weekend
             future_time += timedelta(days=2)
         future_time = future_time.replace(hour=10, minute=0, second=0, microsecond=0)
@@ -272,7 +276,7 @@ class TestSchedulingAPIEndpoints:
         service = setup_test_data["service"]
 
         # Request appointment at 8 PM (outside working hours)
-        future_time = datetime.utcnow() + timedelta(days=1)
+        future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(days=1)
         if future_time.weekday() >= 5:  # Weekend
             future_time += timedelta(days=2)
         future_time = future_time.replace(hour=20, minute=0, second=0, microsecond=0)
@@ -305,7 +309,9 @@ class TestSchedulingAPIEndpoints:
         """Test appointment validation when staff is not found."""
         service = setup_test_data["service"]
 
-        future_time = datetime.utcnow() + timedelta(hours=3)
+        future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(
+            hours=3
+        )
         request_data = {
             "staff_uuid": "12345678-1234-1234-1234-123456789999",
             "service_uuid": str(service.uuid),
@@ -337,7 +343,7 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/business/hours",
                 params={
                     "business_uuid": str(business.uuid),
-                    "date": "2024-01-15T00:00:00",  # Monday
+                    "date": "2024-01-15T00:00:00+00:00",  # Monday
                     "include_breaks": True,
                 },
             )
@@ -365,7 +371,7 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/business/hours",
                 params={
                     "business_uuid": str(business.uuid),
-                    "date": "2024-01-14T00:00:00",  # Sunday (not configured)
+                    "date": "2024-01-14T00:00:00+00:00",  # Sunday (not configured)
                 },
             )
 
@@ -384,7 +390,7 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/business/hours",
                 params={
                     "business_uuid": "12345678-1234-1234-1234-123456789999",
-                    "date": "2024-01-15T00:00:00",
+                    "date": "2024-01-15T00:00:00+00:00",
                 },
             )
 
@@ -404,8 +410,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/schedule",
                 params={
                     "staff_uuid": str(staff.uuid),
-                    "start_date": "2024-01-15T00:00:00",  # Monday
-                    "end_date": "2024-01-19T23:59:59",  # Friday
+                    "start_date": "2024-01-15T00:00:00+00:00",  # Monday
+                    "end_date": "2024-01-19T23:59:59+00:00",  # Friday
                     "include_appointments": True,
                     "include_time_off": True,
                     "include_availability_overrides": True,
@@ -436,8 +442,12 @@ class TestSchedulingAPIEndpoints:
         time_off = TimeOff(
             owner_type=OwnerType.STAFF.value,
             owner_id=staff.id,
-            start_datetime=datetime(2024, 1, 16, 9, 0),  # Tuesday 9 AM
-            end_datetime=datetime(2024, 1, 16, 17, 0),  # Tuesday 5 PM
+            start_datetime=datetime(
+                2024, 1, 16, 9, 0, tzinfo=timezone.utc
+            ),  # Tuesday 9 AM
+            end_datetime=datetime(
+                2024, 1, 16, 17, 0, tzinfo=timezone.utc
+            ),  # Tuesday 5 PM
             type=TimeOffType.PERSONAL.value,
             reason="Doctor appointment",
             status=TimeOffStatus.APPROVED.value,
@@ -451,8 +461,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/schedule",
                 params={
                     "staff_uuid": str(staff.uuid),
-                    "start_date": "2024-01-15T00:00:00",
-                    "end_date": "2024-01-19T23:59:59",
+                    "start_date": "2024-01-15T00:00:00+00:00",
+                    "end_date": "2024-01-19T23:59:59+00:00",
                     "include_time_off": True,
                 },
             )
@@ -478,8 +488,12 @@ class TestSchedulingAPIEndpoints:
         override = AvailabilityOverride(
             staff_id=staff.id,
             override_type=OverrideType.AVAILABLE.value,
-            start_datetime=datetime(2024, 1, 14, 10, 0),  # Sunday 10 AM
-            end_datetime=datetime(2024, 1, 14, 16, 0),  # Sunday 4 PM
+            start_datetime=datetime(
+                2024, 1, 14, 10, 0, tzinfo=timezone.utc
+            ),  # Sunday 10 AM
+            end_datetime=datetime(
+                2024, 1, 14, 16, 0, tzinfo=timezone.utc
+            ),  # Sunday 4 PM
             title="Special Sunday Hours",
             reason="Special event coverage",
             is_active=True,
@@ -494,8 +508,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/schedule",
                 params={
                     "staff_uuid": str(staff.uuid),
-                    "start_date": "2024-01-14T00:00:00",  # Sunday
-                    "end_date": "2024-01-14T23:59:59",  # Sunday
+                    "start_date": "2024-01-14T00:00:00+00:00",  # Sunday
+                    "end_date": "2024-01-14T23:59:59+00:00",  # Sunday
                     "include_availability_overrides": True,
                 },
             )
@@ -519,8 +533,8 @@ class TestSchedulingAPIEndpoints:
                 "/api/v1/scheduling/staff/schedule",
                 params={
                     "staff_uuid": "12345678-1234-1234-1234-123456789999",
-                    "start_date": "2024-01-15T00:00:00",
-                    "end_date": "2024-01-19T23:59:59",
+                    "start_date": "2024-01-15T00:00:00+00:00",
+                    "end_date": "2024-01-19T23:59:59+00:00",
                 },
             )
 
@@ -540,8 +554,12 @@ class TestSchedulingAPIEndpoints:
         time_off = TimeOff(
             owner_type=OwnerType.STAFF.value,
             owner_id=staff.id,
-            start_datetime=datetime(2024, 1, 15, 10, 0),  # Monday 10 AM
-            end_datetime=datetime(2024, 1, 15, 11, 0),  # Monday 11 AM
+            start_datetime=datetime(
+                2024, 1, 15, 10, 0, tzinfo=timezone.utc
+            ),  # Monday 10 AM
+            end_datetime=datetime(
+                2024, 1, 15, 11, 0, tzinfo=timezone.utc
+            ),  # Monday 11 AM
             type=TimeOffType.PERSONAL.value,
             status=TimeOffStatus.APPROVED.value,
         )
@@ -553,7 +571,7 @@ class TestSchedulingAPIEndpoints:
         request_data = {
             "staff_uuid": str(staff.uuid),
             "service_uuid": str(service.uuid),
-            "requested_datetime": "2024-01-15T10:00:00",
+            "requested_datetime": "2024-01-15T10:00:00+00:00",
             "addon_uuids": [],
         }
 

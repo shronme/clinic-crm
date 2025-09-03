@@ -62,36 +62,3 @@ async def get_current_staff(
             is_bookable=True,
         )
         return staff
-
-
-async def get_current_business(
-    x_business_id: Optional[str] = Header(None, description="Current business ID"),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get current business context.
-
-    TODO: This is a placeholder implementation for development.
-    In production, this should be integrated with proper business context.
-    """
-    if not x_business_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Business ID required"
-        )
-
-    try:
-        business_id = int(x_business_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Business-ID must be a valid integer",
-        )
-
-    # Mock business object for development
-    class MockBusiness:
-        def __init__(self, id: int):
-            self.id = id
-            self.name = "Mock Business"
-            self.is_active = True
-
-    return MockBusiness(business_id)
