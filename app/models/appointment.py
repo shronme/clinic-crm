@@ -145,6 +145,7 @@ class Appointment(Base):
     booked_by_staff = relationship("Staff", foreign_keys=[booked_by_staff_id])
     cancelled_by_staff = relationship("Staff", foreign_keys=[cancelled_by_staff_id])
     original_appointment = relationship("Appointment", remote_side=[id])
+    appointment_addons = relationship("AppointmentAddon", back_populates="appointment")
 
     # Status transition methods
     def can_transition_to(self, new_status: AppointmentStatus) -> bool:

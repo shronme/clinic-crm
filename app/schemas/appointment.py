@@ -138,6 +138,20 @@ class Appointment(AppointmentBase):
         from_attributes = True
 
 
+class AppointmentAddonSummary(BaseModel):
+    """Summary of addon information for appointments."""
+
+    id: int
+    uuid: UUID
+    addon_name: str
+    addon_price: Decimal
+    addon_duration_minutes: int
+    quantity: int
+
+    class Config:
+        from_attributes = True
+
+
 class AppointmentWithRelations(Appointment):
     business: Optional["BusinessSummary"] = None
     customer: Optional["CustomerSummary"] = None
@@ -146,6 +160,7 @@ class AppointmentWithRelations(Appointment):
     booked_by_staff: Optional["StaffSummary"] = None
     cancelled_by_staff: Optional["StaffSummary"] = None
     original_appointment: Optional["AppointmentSummary"] = None
+    appointment_addons: list[AppointmentAddonSummary] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

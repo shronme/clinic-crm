@@ -108,7 +108,7 @@ class SchedulingEngineService:
 
         # Calculate total duration including addons
         total_duration = service.total_duration_minutes
-        addon_duration = self._calculate_addon_duration(request.addon_uuids)
+        addon_duration = await self._calculate_addon_duration(request.addon_uuids)
         total_duration += addon_duration
 
         estimated_end_time = request.requested_datetime + timedelta(
@@ -408,8 +408,7 @@ class SchedulingEngineService:
         query = select(Appointment).where(
             and_(
                 Appointment.staff_id == staff_id,
-                Appointment.is_cancelled
-                == False,  # Only check non-cancelled appointments
+                ~Appointment.is_cancelled,  # Only check non-cancelled appointments
                 Appointment.status.in_(
                     [
                         AppointmentStatus.TENTATIVE.value,
@@ -525,14 +524,21 @@ class SchedulingEngineService:
 
         return available_slots
 
-    def _calculate_addon_duration(self, addon_uuids: list[str]) -> int:
+    async def _calculate_addon_duration(self, addon_uuids: list[str]) -> int:
         """Calculate total duration of service addons."""
         if not addon_uuids:
             return 0
 
-        # This would query service addons and sum their durations
-        # Placeholder for now
-        return 0
+        from app.models.service_addon import ServiceAddon
+        from sqlalchemy import and_
+
+        result = await self.db.execute(
+            select(ServiceAddon.extra_duration_minutes).where(
+                and_(ServiceAddon.uuid.in_(addon_uuids), ServiceAddon.is_active)
+            )
+        )
+        durations = result.scalars().all()
+        return sum(durations) if durations else 0
 
     async def _get_staff_by_uuid(self, staff_uuid: str) -> Optional[Staff]:
         """Get staff by UUID."""

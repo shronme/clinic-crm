@@ -30,8 +30,6 @@ Base = declarative_base()
 async def init_db():
     """Initialize database connection and import models."""
     try:
-        # Import all models to ensure they are registered with SQLAlchemy
-
         # Test database connection
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))

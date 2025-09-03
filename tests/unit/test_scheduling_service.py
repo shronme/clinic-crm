@@ -27,6 +27,7 @@ from app.models.availability_override import AvailabilityOverride, OverrideType
 from app.models.business import Business
 from app.models.customer import Customer
 from app.models.service import Service
+from app.models.service_addon import ServiceAddon
 from app.models.staff import Staff, StaffRole
 from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
 from app.models.working_hours import OwnerType, WeekDay, WorkingHours
@@ -89,6 +90,30 @@ async def scheduling_test_data(db: AsyncSession):
     db.add(service)
     await db.flush()
 
+    # Create service addons
+    addon1 = ServiceAddon(
+        business_id=business.id,
+        service_id=service.id,
+        name="Beard Trim",
+        description="Professional beard trimming",
+        extra_duration_minutes=15,
+        price=10.00,
+        is_active=True,
+    )
+
+    addon2 = ServiceAddon(
+        business_id=business.id,
+        service_id=service.id,
+        name="Hair Wash",
+        description="Shampoo and conditioning",
+        extra_duration_minutes=10,
+        price=5.00,
+        is_active=True,
+    )
+
+    db.add_all([addon1, addon2])
+    await db.flush()
+
     # Create business working hours for all weekdays (Monday to Friday, 9 AM to 6 PM)
     for weekday in [
         WeekDay.MONDAY,
@@ -136,6 +161,8 @@ async def scheduling_test_data(db: AsyncSession):
         "customer": customer,
         "staff": staff,
         "service": service,
+        "addon1": addon1,
+        "addon2": addon2,
     }
 
 
@@ -461,3 +488,188 @@ class TestSchedulingEngineService:
             staff.id, start_time, end_time
         )
         assert has_conflict is False
+
+    @pytest.mark.asyncio
+    async def test_validate_appointment_with_addons(
+        self, db: AsyncSession, scheduling_test_data
+    ):
+        """Test appointment validation with service addons."""
+        staff = scheduling_test_data["staff"]
+        service = scheduling_test_data["service"]
+        addon1 = scheduling_test_data["addon1"]
+        addon2 = scheduling_test_data["addon2"]
+        scheduling_service = SchedulingEngineService(db)
+
+        future_time = get_future_datetime(hour=10)
+
+        # Test with one addon
+        request = AppointmentValidationRequest(
+            staff_uuid=str(staff.uuid),
+            service_uuid=str(service.uuid),
+            requested_datetime=future_time,
+            addon_uuids=[str(addon1.uuid)],
+        )
+
+        response = await scheduling_service.validate_appointment(request)
+
+        assert response.is_valid is True
+        assert len(response.conflicts) == 0
+        # Service (30) + buffers (5+5) + addon1 (15) = 55 minutes
+        assert response.total_duration_minutes == 55
+
+        # Test with multiple addons
+        request = AppointmentValidationRequest(
+            staff_uuid=str(staff.uuid),
+            service_uuid=str(service.uuid),
+            requested_datetime=future_time + timedelta(hours=1),
+            addon_uuids=[str(addon1.uuid), str(addon2.uuid)],
+        )
+
+        response = await scheduling_service.validate_appointment(request)
+
+        assert response.is_valid is True
+        assert len(response.conflicts) == 0
+        # Service (30) + buffers (5+5) + addon1 (15) + addon2 (10) = 65 minutes
+        assert response.total_duration_minutes == 65
+
+    @pytest.mark.asyncio
+    async def test_validate_appointment_with_addons_conflict(
+        self, db: AsyncSession, scheduling_test_data
+    ):
+        """Test appointment validation with addons that cause conflicts."""
+        staff = scheduling_test_data["staff"]
+        service = scheduling_test_data["service"]
+        addon1 = scheduling_test_data["addon1"]
+        addon2 = scheduling_test_data["addon2"]
+        customer = scheduling_test_data["customer"]
+        scheduling_service = SchedulingEngineService(db)
+
+        # Create an existing appointment
+        appointment_time = get_future_datetime(hour=10)
+        existing_appointment = Appointment(
+            business_id=scheduling_test_data["business"].id,
+            customer_id=customer.id,
+            staff_id=staff.id,
+            service_id=service.id,
+            scheduled_datetime=appointment_time,
+            estimated_end_datetime=appointment_time + timedelta(minutes=30),
+            duration_minutes=30,
+            total_price=25.00,
+            status=AppointmentStatus.CONFIRMED.value,
+            is_cancelled=False,
+        )
+        db.add(existing_appointment)
+        await db.commit()
+
+        # Request appointment with addons that would conflict
+        # Start 15 minutes after existing appointment, but with 65-minute duration
+        # This should conflict because it extends beyond the existing appointment
+        conflict_time = appointment_time + timedelta(minutes=15)
+        request = AppointmentValidationRequest(
+            staff_uuid=str(staff.uuid),
+            service_uuid=str(service.uuid),
+            requested_datetime=conflict_time,
+            addon_uuids=[str(addon1.uuid), str(addon2.uuid)],
+        )
+
+        response = await scheduling_service.validate_appointment(request)
+
+        assert response.is_valid is False
+        assert len(response.conflicts) > 0
+
+        # Check for appointment conflict
+        conflict_types = [conflict.conflict_type for conflict in response.conflicts]
+        assert ConflictType.EXISTING_APPOINTMENT in conflict_types
+
+    @pytest.mark.asyncio
+    async def test_get_staff_availability_with_addons(
+        self, db: AsyncSession, scheduling_test_data
+    ):
+        """Test staff availability query with service addons."""
+        staff = scheduling_test_data["staff"]
+        service = scheduling_test_data["service"]
+        addon1 = scheduling_test_data["addon1"]
+        scheduling_service = SchedulingEngineService(db)
+
+        future_date = get_future_datetime(hour=9)
+
+        # Test availability with addon duration
+        query = StaffAvailabilityQuery(
+            staff_uuid=str(staff.uuid),
+            start_datetime=future_date,
+            end_datetime=future_date.replace(hour=17),
+            service_uuid=str(service.uuid),
+            slot_duration_minutes=55,  # Service (30) + buffers (10) + addon1 (15)
+        )
+
+        slots = await scheduling_service.get_staff_availability(query)
+
+        # Should have fewer slots due to longer duration
+        assert len(slots) >= 6  # At least 6 slots with 55-minute duration
+        assert all(slot.service_uuid == str(service.uuid) for slot in slots)
+
+        # All slots should be available since no conflicts exist
+        available_slots = [
+            slot for slot in slots if slot.status == AvailabilityStatus.AVAILABLE
+        ]
+        assert len(available_slots) == len(slots)
+
+    @pytest.mark.asyncio
+    async def test_calculate_addon_duration(
+        self, db: AsyncSession, scheduling_test_data
+    ):
+        """Test addon duration calculation method."""
+        addon1 = scheduling_test_data["addon1"]
+        addon2 = scheduling_test_data["addon2"]
+        scheduling_service = SchedulingEngineService(db)
+
+        # Test with no addons
+        duration = await scheduling_service._calculate_addon_duration([])
+        assert duration == 0
+
+        # Test with one addon
+        duration = await scheduling_service._calculate_addon_duration(
+            [str(addon1.uuid)]
+        )
+        assert duration == 15
+
+        # Test with multiple addons
+        duration = await scheduling_service._calculate_addon_duration(
+            [str(addon1.uuid), str(addon2.uuid)]
+        )
+        assert duration == 25  # 15 + 10
+
+        # Test with non-existent addon
+        duration = await scheduling_service._calculate_addon_duration(
+            ["12345678-1234-1234-1234-123456789999"]
+        )
+        assert duration == 0
+
+    @pytest.mark.asyncio
+    async def test_validate_appointment_inactive_addon(
+        self, db: AsyncSession, scheduling_test_data
+    ):
+        """Test appointment validation with inactive addon."""
+        staff = scheduling_test_data["staff"]
+        service = scheduling_test_data["service"]
+        addon1 = scheduling_test_data["addon1"]
+        scheduling_service = SchedulingEngineService(db)
+
+        # Make addon inactive
+        addon1.is_active = False
+        await db.commit()
+
+        future_time = get_future_datetime(hour=10)
+
+        request = AppointmentValidationRequest(
+            staff_uuid=str(staff.uuid),
+            service_uuid=str(service.uuid),
+            requested_datetime=future_time,
+            addon_uuids=[str(addon1.uuid)],
+        )
+
+        response = await scheduling_service.validate_appointment(request)
+
+        assert response.is_valid is True
+        # Should not include inactive addon duration
+        assert response.total_duration_minutes == 40  # Service (30) + buffers (10)

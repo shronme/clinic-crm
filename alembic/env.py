@@ -24,6 +24,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from app.core.database import Base
 
 # Import all models to ensure they're registered
+from app.models import *  # noqa: F401, F403
 
 target_metadata = Base.metadata
 

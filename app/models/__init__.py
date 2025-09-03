@@ -1,6 +1,7 @@
 # Import all models to ensure they are registered with SQLAlchemy
 from . import (
     appointment,
+    appointment_addon,
     availability_override,
     business,
     customer,
@@ -17,6 +18,7 @@ from . import (
 
 __all__ = [
     "appointment",
+    "appointment_addon",
     "availability_override",
     "business",
     "customer",

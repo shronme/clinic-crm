@@ -56,9 +56,32 @@ class AppointmentService:
         # Get service for price and duration validation
         service = await self._get_service_by_id(appointment_data.service_id)
 
+        # Handle addons
+        addon_uuids = []
+        addon_duration = 0
+        addon_price = 0
+
+        if appointment_data.addon_ids:
+            addons = await self._get_addons_by_ids(
+                appointment_data.addon_ids, appointment_data.business_id
+            )
+            addon_uuids = [str(addon.uuid) for addon in addons]
+            addon_duration = sum(addon.extra_duration_minutes for addon in addons)
+            addon_price = sum(float(addon.price) for addon in addons)
+
+            # Validate addons belong to the same service
+            for addon in addons:
+                if addon.service_id != appointment_data.service_id:
+                    raise ValueError(
+                        f"Addon '{addon.name}' does not belong to the selected service"
+                    )
+
+        # Calculate total duration including addons
+        total_duration = appointment_data.duration_minutes + addon_duration
+
         # Calculate estimated end time
         estimated_end_datetime = appointment_data.scheduled_datetime + timedelta(
-            minutes=appointment_data.duration_minutes
+            minutes=total_duration
         )
 
         # Validate appointment constraints
@@ -71,7 +94,7 @@ class AppointmentService:
             customer_uuid=str(
                 (await self._get_customer_by_id(appointment_data.customer_id)).uuid
             ),
-            addon_uuids=[],  # TODO: Handle addons when implemented
+            addon_uuids=addon_uuids,
         )
 
         validation_response = await self.scheduling_engine.validate_appointment(
@@ -83,6 +106,9 @@ class AppointmentService:
                 f"Appointment validation failed: {validation_response.conflicts}"
             )
 
+        # Calculate total price including addons
+        total_price = float(appointment_data.total_price) + addon_price
+
         # Create appointment
         appointment = Appointment(
             business_id=appointment_data.business_id,
@@ -91,8 +117,8 @@ class AppointmentService:
             service_id=appointment_data.service_id,
             scheduled_datetime=appointment_data.scheduled_datetime,
             estimated_end_datetime=estimated_end_datetime,
-            duration_minutes=appointment_data.duration_minutes,
-            total_price=appointment_data.total_price,
+            duration_minutes=total_duration,
+            total_price=total_price,
             status=AppointmentStatus.TENTATIVE.value,
             booking_source=appointment_data.booking_source.value,
             booked_by_staff_id=appointment_data.booked_by_staff_id,
@@ -108,8 +134,13 @@ class AppointmentService:
 
         self.db.add(appointment)
         await self.db.flush()
-        await self.db.refresh(appointment)
 
+        # Create appointment-addon relationships
+        if appointment_data.addon_ids:
+            await self._create_appointment_addons(appointment.id, addons)
+
+        await self.db.commit()
+        await self.db.refresh(appointment)
         return appointment
 
     async def get_appointment_by_uuid(
@@ -125,6 +156,7 @@ class AppointmentService:
                 joinedload(Appointment.service),
                 joinedload(Appointment.booked_by_staff),
                 joinedload(Appointment.cancelled_by_staff),
+                joinedload(Appointment.appointment_addons),
             )
             .where(Appointment.uuid == appointment_uuid)
         )
@@ -684,3 +716,37 @@ class AppointmentService:
             query = query.order_by(sort_column.asc())
 
         return query
+
+    async def _get_addons_by_ids(self, addon_ids: list[int], business_id: int) -> list:
+        """Get service addons by their IDs."""
+        from app.models.service_addon import ServiceAddon
+        from sqlalchemy import and_
+
+        if not addon_ids:
+            return []
+
+        result = await self.db.execute(
+            select(ServiceAddon).where(
+                and_(
+                    ServiceAddon.id.in_(addon_ids),
+                    ServiceAddon.business_id == business_id,
+                    ServiceAddon.is_active,
+                )
+            )
+        )
+        return result.scalars().all()
+
+    async def _create_appointment_addons(self, appointment_id: int, addons: list):
+        """Create appointment-addon relationships."""
+        from app.models.appointment_addon import AppointmentAddon
+
+        for addon in addons:
+            appointment_addon = AppointmentAddon(
+                appointment_id=appointment_id,
+                addon_id=addon.id,
+                addon_name=addon.name,
+                addon_price=addon.price,
+                addon_duration_minutes=addon.extra_duration_minutes,
+                quantity=1,  # Default quantity, can be extended later
+            )
+            self.db.add(appointment_addon)
