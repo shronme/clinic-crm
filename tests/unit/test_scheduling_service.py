@@ -500,7 +500,7 @@ class TestSchedulingEngineService:
         addon2 = scheduling_test_data["addon2"]
         scheduling_service = SchedulingEngineService(db)
 
-        future_time = get_future_datetime(hour=10)
+        future_time = get_future_datetime(hour=9)
 
         # Test with one addon
         request = AppointmentValidationRequest(
@@ -517,11 +517,11 @@ class TestSchedulingEngineService:
         # Service (30) + buffers (5+5) + addon1 (15) = 55 minutes
         assert response.total_duration_minutes == 55
 
-        # Test with multiple addons
+        # Test with multiple addons - use 2 PM to avoid break time conflict
         request = AppointmentValidationRequest(
             staff_uuid=str(staff.uuid),
             service_uuid=str(service.uuid),
-            requested_datetime=future_time + timedelta(hours=1),
+            requested_datetime=get_future_datetime(hour=14),
             addon_uuids=[str(addon1.uuid), str(addon2.uuid)],
         )
 

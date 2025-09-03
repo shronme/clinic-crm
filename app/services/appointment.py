@@ -162,7 +162,7 @@ class AppointmentService:
         )
 
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_appointments(
         self, search: AppointmentSearch, business_id: Optional[int] = None
@@ -198,7 +198,7 @@ class AppointmentService:
         query = query.offset(offset).limit(search.page_size)
 
         result = await self.db.execute(query)
-        appointments = result.scalars().all()
+        appointments = result.unique().scalars().all()
 
         return list(appointments), total_count
 

@@ -288,8 +288,9 @@ class TestAppointmentServiceRead:
             service_id=1,
         )
 
-        # Create a proper async mock result
+        # Create a proper async mock result supporting .unique().scalar_one_or_none()
         mock_result = Mock()  # Non-async mock for the result
+        mock_result.unique.return_value = mock_result
         mock_result.scalar_one_or_none.return_value = expected_appointment
         mock_db.execute.return_value = mock_result  # execute returns this result
 
@@ -304,8 +305,9 @@ class TestAppointmentServiceRead:
         """Test appointment retrieval when not found."""
         appointment_uuid = str(uuid4())
 
-        # Create a proper async mock result
+        # Create a proper async mock result supporting .unique().scalar_one_or_none()
         mock_result = Mock()  # Non-async mock for the result
+        mock_result.unique.return_value = mock_result
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -332,15 +334,17 @@ class TestAppointmentServiceRead:
             Appointment(id=2, status=AppointmentStatus.CONFIRMED.value),
         ]
 
-        # Mock query execution
-        mock_db.execute.side_effect = [
-            Mock(scalar=Mock(return_value=2)),  # Count query
-            Mock(
-                scalars=Mock(
-                    return_value=Mock(all=Mock(return_value=expected_appointments))
-                )
-            ),  # Data query
-        ]
+        # Mock query execution: first for count, then for data with .unique().scalars().all()
+        count_result = Mock()
+        count_result.scalar.return_value = 2
+
+        data_scalars = Mock()
+        data_scalars.all.return_value = expected_appointments
+        data_result = Mock()
+        data_result.unique.return_value = data_result
+        data_result.scalars.return_value = data_scalars
+
+        mock_db.execute.side_effect = [count_result, data_result]
 
         appointments, total_count = await appointment_service.get_appointments(
             search, 1
