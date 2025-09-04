@@ -12,6 +12,7 @@ from app.models.customer import Customer
 from app.models.service import Service
 from app.models.staff import Staff
 from app.models.working_hours import OwnerType, WeekDay, WorkingHours
+from tests.conftest import get_auth_headers
 
 
 @pytest.fixture
@@ -520,8 +521,11 @@ class TestAppointmentAPIStatusTransitions:
             "notes": "Customer called to confirm",
         }
 
+        headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", 
+            json=transition_data, 
+            headers=headers
         )
 
         assert response.status_code == 200
@@ -545,8 +549,11 @@ class TestAppointmentAPIStatusTransitions:
             "cancellation_fee": "15.00",
         }
 
+        headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", 
+            json=transition_data,
+            headers=headers
         )
 
         assert response.status_code == 200
@@ -569,8 +576,11 @@ class TestAppointmentAPIStatusTransitions:
             "new_status": "confirmed",
         }
 
+        headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", json=transition_data
+            f"/api/v1/appointments/{test_appointment.uuid}/status", 
+            json=transition_data,
+            headers=headers
         )
 
         assert response.status_code == 400

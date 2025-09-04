@@ -89,5 +89,16 @@ def mock_datetime():
     return datetime(2024, 1, 15, 10, 30, 0)
 
 
+# Test Authentication Utilities
+def get_auth_headers(staff_id: int) -> dict[str, str]:
+    """
+    Generate authentication headers for tests.
+    
+    Since Descope is not configured in tests, the Bearer token
+    is treated as a simple staff ID string by the fallback auth.
+    """
+    return {"Authorization": f"Bearer {staff_id}"}
+
+
 # Import all service fixtures to make them available
 pytest_plugins = ["tests.fixtures.service_fixtures"]

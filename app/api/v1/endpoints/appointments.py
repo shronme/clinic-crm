@@ -5,8 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps.auth import get_current_staff
 from app.api.deps.business import BusinessContext, get_business_from_header
 from app.api.deps.database import get_db
+from app.models.staff import Staff
 from app.schemas.appointment import (
     Appointment,
     AppointmentCreate,
@@ -193,26 +195,25 @@ async def transition_appointment_status(
     appointment_uuid: UUID,
     transition: AppointmentStatusTransition,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Transition appointment status (confirm, complete, cancel, etc.)."""
 
     service = AppointmentService(db)
 
-    # Verify appointment exists and belongs to business
+    # Verify appointment exists and belongs to staff's business
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
         )
 
     try:
-        # TODO: Get current staff ID from authentication context
         appointment = await service.transition_appointment_status(
-            str(appointment_uuid), transition, staff_id=None
+            str(appointment_uuid), transition, staff_id=current_staff.id
         )
         await db.commit()
         return appointment

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import get_current_staff
-from app.api.deps.business import get_business_from_header
 from app.api.deps.database import get_db
 from app.models.staff import Staff, StaffRole
 from app.schemas.staff import (
@@ -36,7 +35,6 @@ router = APIRouter()
 async def get_staff(
     include_inactive: bool = Query(False, description="Include inactive staff members"),
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -58,7 +56,7 @@ async def get_staff(
 
     service = StaffManagementService(db)
     staff_list = await service.list_staff(
-        business_id=business_context.business_id, include_inactive=include_inactive
+        business_id=current_staff.business_id, include_inactive=include_inactive
     )
     return staff_list
 
@@ -67,7 +65,6 @@ async def get_staff(
 async def create_staff(
     staff_data: StaffCreate,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -84,7 +81,7 @@ async def create_staff(
         )
 
     # Ensure business_id matches current business context
-    if staff_data.business_id != business_context.business_id:
+    if staff_data.business_id != current_staff.business_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Business ID must match current business context",
@@ -109,7 +106,6 @@ async def create_staff(
 async def get_staff_by_uuid(
     staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -131,7 +127,7 @@ async def get_staff_by_uuid(
 
     service = StaffManagementService(db)
     staff = await service.get_staff_by_uuid(
-        staff_uuid, business_id=business_context.business_id
+        staff_uuid, business_id=current_staff.business_id
     )
 
     if not staff:
@@ -147,7 +143,6 @@ async def update_staff(
     staff_uuid: UUID,
     staff_data: StaffUpdate,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -181,7 +176,7 @@ async def update_staff(
 
     service = StaffManagementService(db)
     staff = await service.update_staff_by_uuid(
-        staff_uuid, staff_data, business_id=business_context.business_id
+        staff_uuid, staff_data, business_id=current_staff.business_id
     )
 
     if not staff:
@@ -196,7 +191,6 @@ async def update_staff(
 async def delete_staff(
     staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -221,7 +215,7 @@ async def delete_staff(
 
     service = StaffManagementService(db)
     success = await service.delete_staff_by_uuid(
-        staff_uuid, business_id=business_context.business_id
+        staff_uuid, business_id=current_staff.business_id
     )
 
     if not success:
@@ -236,7 +230,6 @@ async def set_staff_working_hours(
     staff_uuid: UUID,
     working_hours: list[WorkingHoursCreate],
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -275,7 +268,6 @@ async def get_staff_working_hours(
     staff_uuid: UUID,
     active_only: bool = Query(True, description="Include only active working hours"),
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -313,7 +305,6 @@ async def create_time_off(
     staff_uuid: UUID,
     time_off_data: TimeOffCreate,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -355,7 +346,6 @@ async def get_staff_time_offs(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -413,7 +403,6 @@ async def approve_time_off(
     time_off_uuid: UUID,
     approval_notes: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -452,7 +441,6 @@ async def deny_time_off(
     time_off_uuid: UUID,
     denial_notes: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -496,7 +484,6 @@ async def create_availability_override(
     staff_uuid: UUID,
     override_data: AvailabilityOverrideCreate,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -547,7 +534,6 @@ async def get_staff_availability_overrides(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -606,7 +592,6 @@ async def calculate_staff_availability(
     staff_uuid: UUID,
     availability_query: StaffAvailabilityQuery,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -648,7 +633,6 @@ async def assign_service_to_staff(
     staff_uuid: UUID,
     service_override: StaffServiceOverride,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -694,7 +678,6 @@ async def remove_service_from_staff(
     staff_uuid: UUID,
     service_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -725,7 +708,6 @@ async def get_staff_services(
     staff_uuid: UUID,
     available_only: bool = Query(True, description="Include only available services"),
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -782,7 +764,6 @@ async def get_staff_services(
 async def get_staff_with_services(
     staff_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context=Depends(get_business_from_header),
     current_staff: Staff = Depends(get_current_staff),
 ):
     """
@@ -804,7 +785,7 @@ async def get_staff_with_services(
 
     service = StaffManagementService(db)
     staff = await service.get_staff_by_uuid(
-        staff_uuid, business_id=business_context.business_id
+        staff_uuid, business_id=current_staff.business_id
     )
 
     if not staff:

@@ -102,37 +102,13 @@ async def get_business_from_header(
     return await get_business_context(business_id, db)
 
 
-def require_business_owner():
+async def get_business_from_staff(
+    staff, db: AsyncSession = Depends(get_db)
+) -> BusinessContext:
     """
-    Dependency factory for business owner permissions.
-
-    TODO: Implement after authentication system is in place.
-    This should check that the current user is the owner/admin of the business.
+    Get business context from authenticated staff.
+    
+    This is the preferred method as it gets business context directly 
+    from the authenticated user's business association.
     """
-
-    async def _check_business_owner(
-        business_context: BusinessContext = Depends(get_business_context),
-    ):
-        # Placeholder for owner permission check
-        # Will be implemented when auth system is ready
-        return business_context
-
-    return _check_business_owner
-
-
-def require_business_staff():
-    """
-    Dependency factory for business staff permissions.
-
-    TODO: Implement after authentication system is in place.
-    This should check that the current user is staff/owner/admin of the business.
-    """
-
-    async def _check_business_staff(
-        business_context: BusinessContext = Depends(get_business_context),
-    ):
-        # Placeholder for staff permission check
-        # Will be implemented when auth system is ready
-        return business_context
-
-    return _check_business_staff
+    return await get_business_context(staff.business_id, db)
