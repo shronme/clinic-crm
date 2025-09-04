@@ -1,9 +1,9 @@
 
+import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
 
 from app.api.deps.database import get_db
 from app.core.config import settings
@@ -39,42 +39,42 @@ async def get_current_staff(
 ) -> Staff:
     """
     Get current authenticated staff member.
-    
+
     - In production: Validates Descope JWT token and extracts staff info
     - In test/dev: Falls back to header-based auth if Descope not configured
     """
-    
+
     # If Descope is not configured (tests/dev), fall back to old header auth
     if not descope_client:
         logger.warning("Descope not configured, using development auth fallback")
         return await _get_staff_dev_fallback(credentials.credentials, db)
-    
+
     token = credentials.credentials
-    
+
     try:
         # Validate JWT token with Descope
         jwt_response = descope_client.validate_session(token)
-        
+
         if not jwt_response.valid:
             logger.warning("Invalid JWT token provided")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication token"
             )
-        
+
         # Extract user information from JWT
         user_info = jwt_response.claims
         descope_user_id = user_info.get("sub")  # Subject (user ID)
         email = user_info.get("email")
-        
+
         # Extract custom claims (business_id, staff_id, role)
         custom_attrs = user_info.get("customAttributes", {})
         staff_id = custom_attrs.get("staff_id")
         business_id = custom_attrs.get("business_id")
-        
+
         if not staff_id:
             logger.error(
-                "Staff ID not found in JWT token", 
+                "Staff ID not found in JWT token",
                 descope_user_id=descope_user_id,
                 email=email
             )
@@ -82,13 +82,13 @@ async def get_current_staff(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Staff information not found in token"
             )
-        
+
         # Look up staff from database
         result = await db.execute(
             select(Staff).where(Staff.id == int(staff_id))
         )
         staff = result.scalar_one_or_none()
-        
+
         if not staff:
             logger.error(
                 "Staff not found in database",
@@ -99,7 +99,7 @@ async def get_current_staff(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Staff member not found"
             )
-        
+
         if not staff.is_active:
             logger.warning(
                 "Inactive staff attempted access",
@@ -110,7 +110,7 @@ async def get_current_staff(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Staff account is inactive"
             )
-        
+
         # Verify business_id matches (security check)
         if business_id and staff.business_id != int(business_id):
             logger.error(
@@ -123,7 +123,7 @@ async def get_current_staff(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Business access mismatch"
             )
-        
+
         logger.info(
             "Staff authenticated successfully",
             staff_id=staff.id,
@@ -131,9 +131,9 @@ async def get_current_staff(
             business_id=staff.business_id,
             role=staff.role
         )
-        
+
         return staff
-        
+
     except AuthException as e:
         logger.error("Descope authentication error", error=str(e))
         raise HTTPException(
@@ -159,7 +159,7 @@ async def _get_staff_dev_fallback(token: str, db: AsyncSession) -> Staff:
         staff_id = int(token)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid staff ID format"
         )
 
@@ -170,7 +170,7 @@ async def _get_staff_dev_fallback(token: str, db: AsyncSession) -> Staff:
 
         if not staff:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Staff member not found"
             )
 

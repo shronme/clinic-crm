@@ -107,8 +107,8 @@ async def get_business_from_staff(
 ) -> BusinessContext:
     """
     Get business context from authenticated staff.
-    
-    This is the preferred method as it gets business context directly 
+
+    This is the preferred method as it gets business context directly
     from the authenticated user's business association.
     """
     return await get_business_context(staff.business_id, db)

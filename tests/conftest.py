@@ -93,7 +93,7 @@ def mock_datetime():
 def get_auth_headers(staff_id: int) -> dict[str, str]:
     """
     Generate authentication headers for tests.
-    
+
     Since Descope is not configured in tests, the Bearer token
     is treated as a simple staff ID string by the fallback auth.
     """

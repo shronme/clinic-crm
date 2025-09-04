@@ -502,7 +502,7 @@ class TestAppointmentAPIUpdate:
         """Test updating non-existent appointment."""
         fake_uuid = uuid4()
         update_data = {"total_price": "60.00"}
-        
+
         headers = get_auth_headers(test_staff.id)  # Staff member
         response = await client.put(
             f"/api/v1/appointments/{fake_uuid}", json=update_data, headers=headers
@@ -526,8 +526,8 @@ class TestAppointmentAPIStatusTransitions:
 
         headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", 
-            json=transition_data, 
+            f"/api/v1/appointments/{test_appointment.uuid}/status",
+            json=transition_data,
             headers=headers
         )
 
@@ -554,7 +554,7 @@ class TestAppointmentAPIStatusTransitions:
 
         headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", 
+            f"/api/v1/appointments/{test_appointment.uuid}/status",
             json=transition_data,
             headers=headers
         )
@@ -581,7 +581,7 @@ class TestAppointmentAPIStatusTransitions:
 
         headers = get_auth_headers(1)  # Staff member performing transition
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/status", 
+            f"/api/v1/appointments/{test_appointment.uuid}/status",
             json=transition_data,
             headers=headers
         )
@@ -646,8 +646,8 @@ class TestAppointmentAPISlotLocking:
 
         headers = get_auth_headers(test_appointment.staff_id)  # Staff member
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/lock", 
-            json=lock_data, 
+            f"/api/v1/appointments/{test_appointment.uuid}/lock",
+            json=lock_data,
             headers=headers
         )
 

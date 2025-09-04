@@ -4,10 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps.business import get_business_from_header
+from app.api.deps.auth import get_current_staff
 from app.api.deps.database import get_db
-from app.models.business import Business
 from app.models.customer import CustomerStatus
+from app.models.staff import Staff
 from app.schemas.customer import (
     CustomerCreate,
     CustomerCSVImport,
@@ -27,12 +27,12 @@ router = APIRouter()
 async def create_customer(
     customer_data: CustomerCreate,
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Create a new customer."""
     try:
         customer = await customer_service.create_customer(
-            db, customer_data, business.id
+            db, customer_data, current_staff.business_id
         )
         return CustomerResponse.from_orm(customer)
     except ValueError as e:
@@ -48,13 +48,13 @@ async def get_customers(
     ),
     include_inactive: bool = Query(False, description="Include inactive customers"),
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Get list of customers with pagination."""
     try:
         customers = await customer_service.get_customers(
             db=db,
-            business_id=business.id,
+            business_id=current_staff.business_id,
             skip=skip,
             limit=limit,
             status_filter=status,
@@ -80,13 +80,13 @@ async def search_customers(
     skip: int = Query(0, ge=0, description="Number of customers to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of customers to return"),
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Search customers with advanced filtering."""
     try:
         customers, total = await customer_service.search_customers(
             db=db,
-            business_id=business.id,
+            business_id=current_staff.business_id,
             search_params=search_params,
             skip=skip,
             limit=limit,
@@ -106,11 +106,11 @@ async def search_customers(
 @router.get("/stats", response_model=CustomerStats)
 async def get_customer_stats(
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Get customer statistics for the business."""
     try:
-        stats = await customer_service.get_customer_stats(db, business.id)
+        stats = await customer_service.get_customer_stats(db, current_staff.business_id)
         return stats
     except Exception:
         raise HTTPException(
@@ -122,12 +122,12 @@ async def get_customer_stats(
 async def get_customer(
     customer_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Get specific customer by UUID."""
     try:
         customer = await customer_service.get_customer_by_uuid(
-            db, customer_uuid, business.id
+            db, customer_uuid, current_staff.business_id
         )
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
@@ -143,12 +143,12 @@ async def update_customer(
     customer_uuid: UUID,
     customer_update: CustomerUpdate,
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Update customer information."""
     try:
         customer = await customer_service.update_customer(
-            db, customer_uuid, customer_update, business.id
+            db, customer_uuid, customer_update, current_staff.business_id
         )
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
@@ -168,12 +168,12 @@ async def delete_customer(
         True, description="Perform soft delete (deactivate) instead of hard delete"
     ),
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Delete or deactivate customer."""
     try:
         deleted = await customer_service.delete_customer(
-            db, customer_uuid, business.id, soft_delete
+            db, customer_uuid, current_staff.business_id, soft_delete
         )
         if not deleted:
             raise HTTPException(status_code=404, detail="Customer not found")
@@ -190,12 +190,12 @@ async def get_customer_appointment_history(
         50, ge=1, le=200, description="Number of appointments to return"
     ),
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Get customer's appointment history."""
     try:
         appointments = await customer_service.get_customer_appointment_history(
-            db, customer_uuid, business.id, limit
+            db, customer_uuid, current_staff.business_id, limit
         )
         # Return simplified appointment data or use proper appointment response schema
         return {"appointments": appointments}  # In production, use proper schema
@@ -209,12 +209,12 @@ async def get_customer_appointment_history(
 async def import_customers_from_csv(
     import_data: CustomerCSVImport,
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Import customers from CSV file."""
     try:
         result = await customer_service.import_customers_from_csv(
-            db, business.id, import_data
+            db, current_staff.business_id, import_data
         )
         return result
     except Exception as e:
@@ -228,12 +228,12 @@ async def update_customer_visit_stats(
     customer_uuid: UUID,
     amount_spent: float = Query(0.0, ge=0, description="Amount spent in dollars"),
     db: AsyncSession = Depends(get_db),
-    business: Business = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Update customer visit statistics after an appointment."""
     try:
         customer = await customer_service.get_customer_by_uuid(
-            db, customer_uuid, business.id
+            db, customer_uuid, current_staff.business_id
         )
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")

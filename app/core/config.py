@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     # Descope Authentication
     DESCOPE_PROJECT_ID: Optional[str] = None
     DESCOPE_MANAGEMENT_KEY: Optional[str] = None
