@@ -11,6 +11,7 @@ from app.models.service_category import ServiceCategory
 from app.models.staff import Staff, StaffRole
 from app.models.time_off import TimeOff, TimeOffStatus, TimeOffType
 from app.models.working_hours import OwnerType, WeekDay, WorkingHours
+from tests.conftest import get_auth_headers
 
 
 @pytest.fixture
@@ -119,6 +120,7 @@ class TestSchedulingAPIEndpoints:
         staff = setup_test_data["staff"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.get(
                 "/api/v1/scheduling/staff/availability",
                 params={
@@ -127,6 +129,7 @@ class TestSchedulingAPIEndpoints:
                     "end_datetime": "2024-01-15T17:00:00+00:00",  # Monday 5 PM
                     "slot_duration_minutes": 30,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -151,6 +154,7 @@ class TestSchedulingAPIEndpoints:
         service = setup_test_data["service"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.get(
                 "/api/v1/scheduling/staff/availability",
                 params={
@@ -160,6 +164,7 @@ class TestSchedulingAPIEndpoints:
                     "service_uuid": str(service.uuid),
                     "slot_duration_minutes": 40,  # Service total duration
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -174,9 +179,13 @@ class TestSchedulingAPIEndpoints:
                 assert slot["service_uuid"] == str(service.uuid)
 
     @pytest.mark.asyncio
-    async def test_get_staff_availability_staff_not_found(self):
+    async def test_get_staff_availability_staff_not_found(self, setup_test_data):
         """Test staff availability when staff is not found."""
+        staff = setup_test_data["staff"]
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(
+                staff.id
+            )  # Use valid staff ID for authentication
             response = await client.get(
                 "/api/v1/scheduling/staff/availability",
                 params={
@@ -185,6 +194,7 @@ class TestSchedulingAPIEndpoints:
                     "end_datetime": "2024-01-15T17:00:00+00:00",
                     "slot_duration_minutes": 30,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -216,8 +226,11 @@ class TestSchedulingAPIEndpoints:
         }
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.post(
-                "/api/v1/scheduling/appointments/validate", json=request_data
+                "/api/v1/scheduling/appointments/validate",
+                json=request_data,
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -251,8 +264,11 @@ class TestSchedulingAPIEndpoints:
         }
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.post(
-                "/api/v1/scheduling/appointments/validate", json=request_data
+                "/api/v1/scheduling/appointments/validate",
+                json=request_data,
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -286,8 +302,11 @@ class TestSchedulingAPIEndpoints:
         }
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.post(
-                "/api/v1/scheduling/appointments/validate", json=request_data
+                "/api/v1/scheduling/appointments/validate",
+                json=request_data,
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -317,8 +336,11 @@ class TestSchedulingAPIEndpoints:
         }
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(1)  # Use any staff ID for test
             response = await client.post(
-                "/api/v1/scheduling/appointments/validate", json=request_data
+                "/api/v1/scheduling/appointments/validate",
+                json=request_data,
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -336,6 +358,7 @@ class TestSchedulingAPIEndpoints:
         business = setup_test_data["business"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(1)  # Use any staff ID for test
             response = await client.get(
                 "/api/v1/scheduling/business/hours",
                 params={
@@ -343,6 +366,7 @@ class TestSchedulingAPIEndpoints:
                     "date": "2024-01-15T00:00:00+00:00",  # Monday
                     "include_breaks": True,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -364,12 +388,14 @@ class TestSchedulingAPIEndpoints:
         business = setup_test_data["business"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(1)  # Use any staff ID for test
             response = await client.get(
                 "/api/v1/scheduling/business/hours",
                 params={
                     "business_uuid": str(business.uuid),
                     "date": "2024-01-14T00:00:00+00:00",  # Sunday (not configured)
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -380,22 +406,30 @@ class TestSchedulingAPIEndpoints:
         assert data["hours"] is None
 
     @pytest.mark.asyncio
-    async def test_get_business_hours_business_not_found(self):
+    async def test_get_business_hours_business_not_found(self, setup_test_data):
         """Test business hours retrieval when business is not found."""
+        staff = setup_test_data["staff"]
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(
+                staff.id
+            )  # Use valid staff ID for authentication
             response = await client.get(
                 "/api/v1/scheduling/business/hours",
                 params={
                     "business_uuid": "12345678-1234-1234-1234-123456789999",
                     "date": "2024-01-15T00:00:00+00:00",
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should return empty dict when business not found
-        assert data == {}
+        # Should return structured response when business not found
+        assert "is_open" in data
+        assert "weekday" in data
+        assert data["is_open"] is False
+        assert data["hours"] is None
 
     @pytest.mark.asyncio
     async def test_get_staff_schedule_success(self, setup_test_data):
@@ -403,6 +437,7 @@ class TestSchedulingAPIEndpoints:
         staff = setup_test_data["staff"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.get(
                 "/api/v1/scheduling/staff/schedule",
                 params={
@@ -413,6 +448,7 @@ class TestSchedulingAPIEndpoints:
                     "include_time_off": True,
                     "include_availability_overrides": True,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -454,6 +490,7 @@ class TestSchedulingAPIEndpoints:
         await db.commit()
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.get(
                 "/api/v1/scheduling/staff/schedule",
                 params={
@@ -462,6 +499,7 @@ class TestSchedulingAPIEndpoints:
                     "end_date": "2024-01-19T23:59:59+00:00",
                     "include_time_off": True,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -501,6 +539,7 @@ class TestSchedulingAPIEndpoints:
         await db.commit()
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.get(
                 "/api/v1/scheduling/staff/schedule",
                 params={
@@ -509,6 +548,7 @@ class TestSchedulingAPIEndpoints:
                     "end_date": "2024-01-14T23:59:59+00:00",  # Sunday
                     "include_availability_overrides": True,
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -523,9 +563,13 @@ class TestSchedulingAPIEndpoints:
         assert override_entry["allow_new_bookings"] is True
 
     @pytest.mark.asyncio
-    async def test_get_staff_schedule_staff_not_found(self):
+    async def test_get_staff_schedule_staff_not_found(self, setup_test_data):
         """Test staff schedule retrieval when staff is not found."""
+        staff = setup_test_data["staff"]
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(
+                staff.id
+            )  # Use valid staff ID for authentication
             response = await client.get(
                 "/api/v1/scheduling/staff/schedule",
                 params={
@@ -533,6 +577,7 @@ class TestSchedulingAPIEndpoints:
                     "start_date": "2024-01-15T00:00:00+00:00",
                     "end_date": "2024-01-19T23:59:59+00:00",
                 },
+                headers=headers,
             )
 
         assert response.status_code == 200
@@ -573,8 +618,11 @@ class TestSchedulingAPIEndpoints:
         }
 
         async with AsyncClient(app=app, base_url="http://test") as client:
+            headers = get_auth_headers(staff.id)
             response = await client.post(
-                "/api/v1/scheduling/appointments/validate", json=request_data
+                "/api/v1/scheduling/appointments/validate",
+                json=request_data,
+                headers=headers,
             )
 
         assert response.status_code == 200

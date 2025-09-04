@@ -9,6 +9,8 @@ from httpx import AsyncClient
 
 from app.main import app
 from app.models.business import Business
+from app.models.staff import Staff
+from tests.conftest import get_auth_headers
 
 
 @pytest_asyncio.fixture
@@ -21,6 +23,19 @@ async def async_client():
 @pytest.mark.unit
 class TestBusinessAPI:
     """Unit tests for Business API endpoints."""
+
+    @pytest.fixture(autouse=True)
+    def mock_auth(self, mock_owner_admin_staff):
+        """Auto-use fixture to mock authentication for all tests."""
+        from app.api.deps.auth import get_current_staff
+
+        # Override only get_current_staff, let require_owner_admin check the role
+        app.dependency_overrides[get_current_staff] = lambda: mock_owner_admin_staff
+
+        yield
+
+        # Clean up overrides
+        app.dependency_overrides.clear()
 
     @pytest.fixture
     def client(self):
@@ -69,6 +84,32 @@ class TestBusinessAPI:
         business.updated_at = datetime(2024, 1, 15, 10, 30, 0)
         return business
 
+    @pytest.fixture
+    def mock_owner_admin_staff(self):
+        """Mock OWNER_ADMIN staff for testing."""
+        return Staff(
+            id=1,
+            business_id=1,
+            name="Owner Admin",
+            email="owner@test.com",
+            role="OWNER_ADMIN",
+            is_active=True,
+            is_bookable=True,
+        )
+
+    @pytest.fixture
+    def mock_staff_member(self):
+        """Mock STAFF member for testing."""
+        return Staff(
+            id=2,
+            business_id=1,
+            name="Staff Member",
+            email="staff@test.com",
+            role="STAFF",
+            is_active=True,
+            is_bookable=True,
+        )
+
     @pytest.mark.asyncio
     async def test_create_business_success(
         self, async_client, sample_business_data, test_uuid, override_get_db
@@ -85,7 +126,9 @@ class TestBusinessAPI:
             mock_create.return_value = mock_business
 
             response = await async_client.post(
-                "/api/v1/business/", json=sample_business_data
+                "/api/v1/business/",
+                json=sample_business_data,
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_201_CREATED
@@ -108,7 +151,9 @@ class TestBusinessAPI:
             )
 
             response = await async_client.post(
-                "/api/v1/business/", json={"name": "Test"}
+                "/api/v1/business/",
+                json={"name": "Test"},
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -127,7 +172,9 @@ class TestBusinessAPI:
             mock_create.side_effect = Exception("Database error")
 
             response = await async_client.post(
-                "/api/v1/business/", json=sample_business_data
+                "/api/v1/business/",
+                json=sample_business_data,
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -143,7 +190,10 @@ class TestBusinessAPI:
         ) as mock_get:
             mock_get.return_value = sample_business_model
 
-            response = await async_client.get(f"/api/v1/business/{test_uuid}")
+            response = await async_client.get(
+                f"/api/v1/business/{test_uuid}",
+                headers=get_auth_headers(1),  # Use staff ID 1, business_id will be 1
+            )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -164,7 +214,10 @@ class TestBusinessAPI:
         ) as mock_get:
             mock_get.return_value = None
 
-            response = await async_client.get(f"/api/v1/business/{test_uuid}")
+            response = await async_client.get(
+                f"/api/v1/business/{test_uuid}",
+                headers=get_auth_headers(1),  # Use staff ID 1
+            )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"
@@ -180,7 +233,8 @@ class TestBusinessAPI:
             mock_get_list.return_value = [sample_business_model]
 
             response = await async_client.get(
-                "/api/v1/business/?skip=0&limit=10&active_only=true"
+                "/api/v1/business/?skip=0&limit=10&active_only=true",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -201,7 +255,8 @@ class TestBusinessAPI:
             mock_get_list.return_value = []
 
             response = await async_client.get(
-                "/api/v1/business/?skip=20&limit=5&active_only=false"
+                "/api/v1/business/?skip=20&limit=5&active_only=false",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -242,7 +297,9 @@ class TestBusinessAPI:
             mock_update.return_value = updated_business
 
             response = await async_client.put(
-                f"/api/v1/business/{test_uuid}", json=update_data
+                f"/api/v1/business/{test_uuid}",
+                json=update_data,
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -262,7 +319,9 @@ class TestBusinessAPI:
             mock_update.return_value = None
 
             response = await async_client.put(
-                f"/api/v1/business/{test_uuid}", json={"name": "New Name"}
+                f"/api/v1/business/{test_uuid}",
+                json={"name": "New Name"},
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -279,7 +338,9 @@ class TestBusinessAPI:
             mock_update.side_effect = ValueError("Invalid data")
 
             response = await async_client.put(
-                f"/api/v1/business/{test_uuid}", json={"name": "Test"}
+                f"/api/v1/business/{test_uuid}",
+                json={"name": "Test"},
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -296,7 +357,8 @@ class TestBusinessAPI:
             mock_delete.return_value = True
 
             response = await async_client.delete(
-                f"/api/v1/business/{test_uuid}?hard_delete=false"
+                f"/api/v1/business/{test_uuid}?hard_delete=false",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -316,7 +378,8 @@ class TestBusinessAPI:
             mock_delete.return_value = True
 
             response = await async_client.delete(
-                f"/api/v1/business/{test_uuid}?hard_delete=true"
+                f"/api/v1/business/{test_uuid}?hard_delete=true",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
             )
 
             assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -335,7 +398,10 @@ class TestBusinessAPI:
         ) as mock_delete:
             mock_delete.return_value = False
 
-            response = await async_client.delete(f"/api/v1/business/{test_uuid}")
+            response = await async_client.delete(
+                f"/api/v1/business/{test_uuid}",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+            )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"
@@ -350,7 +416,10 @@ class TestBusinessAPI:
         ) as mock_activate:
             mock_activate.return_value = sample_business_model
 
-            response = await async_client.post(f"/api/v1/business/{test_uuid}/activate")
+            response = await async_client.post(
+                f"/api/v1/business/{test_uuid}/activate",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+            )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -370,7 +439,10 @@ class TestBusinessAPI:
         ) as mock_activate:
             mock_activate.return_value = None
 
-            response = await async_client.post(f"/api/v1/business/{test_uuid}/activate")
+            response = await async_client.post(
+                f"/api/v1/business/{test_uuid}/activate",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+            )
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json()["detail"] == "Business not found"
@@ -378,7 +450,11 @@ class TestBusinessAPI:
     @pytest.mark.asyncio
     async def test_create_business_invalid_json(self, async_client, override_get_db):
         """Test business creation with invalid JSON payload."""
-        response = await async_client.post("/api/v1/business/", json={})
+        response = await async_client.post(
+            "/api/v1/business/",
+            json={},
+            headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+        )
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -387,7 +463,10 @@ class TestBusinessAPI:
         self, async_client, override_get_db
     ):
         """Test businesses listing with invalid pagination parameters."""
-        response = await async_client.get("/api/v1/business/?skip=-1&limit=0")
+        response = await async_client.get(
+            "/api/v1/business/?skip=-1&limit=0",
+            headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+        )
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -402,9 +481,127 @@ class TestBusinessAPI:
             mock_get_list.return_value = []
 
             # Test maximum limit
-            response = await async_client.get("/api/v1/business/?limit=1000")
+            response = await async_client.get(
+                "/api/v1/business/?limit=1000",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+            )
             assert response.status_code == status.HTTP_200_OK
 
             # Test exceeding maximum limit
-            response = await async_client.get("/api/v1/business/?limit=1001")
+            response = await async_client.get(
+                "/api/v1/business/?limit=1001",
+                headers=get_auth_headers(1),  # Use staff ID 1 for OWNER_ADMIN
+            )
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @pytest.mark.asyncio
+    async def test_create_business_forbidden_non_owner_admin(
+        self, async_client, sample_business_data, override_get_db, mock_staff_member
+    ):
+        """Test business creation is forbidden for non-OWNER_ADMIN users."""
+        # Override only get_current_staff, let require_owner_admin check the role
+        from app.api.deps.auth import get_current_staff
+
+        app.dependency_overrides[get_current_staff] = lambda: mock_staff_member
+
+        try:
+            # Use staff ID 2 which should have STAFF role (not OWNER_ADMIN)
+            response = await async_client.post(
+                "/api/v1/business/",
+                json=sample_business_data,
+                headers=get_auth_headers(2),  # Use staff ID 2 for STAFF role
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            assert "Owner admin access required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_get_businesses_forbidden_non_owner_admin(
+        self, async_client, override_get_db, mock_staff_member
+    ):
+        """Test business listing is forbidden for non-OWNER_ADMIN users."""
+        # Override only get_current_staff, let require_owner_admin check the role
+        from app.api.deps.auth import get_current_staff
+
+        app.dependency_overrides[get_current_staff] = lambda: mock_staff_member
+
+        try:
+            # Use staff ID 2 which should have STAFF role (not OWNER_ADMIN)
+            response = await async_client.get(
+                "/api/v1/business/",
+                headers=get_auth_headers(2),  # Use staff ID 2 for STAFF role
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            assert "Owner admin access required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_update_business_forbidden_non_owner_admin(
+        self, async_client, test_uuid, override_get_db, mock_staff_member
+    ):
+        """Test business update is forbidden for non-OWNER_ADMIN users."""
+        # Override only get_current_staff, let require_owner_admin check the role
+        from app.api.deps.auth import get_current_staff
+
+        app.dependency_overrides[get_current_staff] = lambda: mock_staff_member
+
+        try:
+            # Use staff ID 2 which should have STAFF role (not OWNER_ADMIN)
+            response = await async_client.put(
+                f"/api/v1/business/{test_uuid}",
+                json={"name": "New Name"},
+                headers=get_auth_headers(2),  # Use staff ID 2 for STAFF role
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            assert "Owner admin access required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_delete_business_forbidden_non_owner_admin(
+        self, async_client, test_uuid, override_get_db, mock_staff_member
+    ):
+        """Test business deletion is forbidden for non-OWNER_ADMIN users."""
+        # Override only get_current_staff, let require_owner_admin check the role
+        from app.api.deps.auth import get_current_staff
+
+        app.dependency_overrides[get_current_staff] = lambda: mock_staff_member
+
+        try:
+            # Use staff ID 2 which should have STAFF role (not OWNER_ADMIN)
+            response = await async_client.delete(
+                f"/api/v1/business/{test_uuid}",
+                headers=get_auth_headers(2),  # Use staff ID 2 for STAFF role
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            assert "Owner admin access required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_activate_business_forbidden_non_owner_admin(
+        self, async_client, test_uuid, override_get_db, mock_staff_member
+    ):
+        """Test business activation is forbidden for non-OWNER_ADMIN users."""
+        # Override only get_current_staff, let require_owner_admin check the role
+        from app.api.deps.auth import get_current_staff
+
+        app.dependency_overrides[get_current_staff] = lambda: mock_staff_member
+
+        try:
+            # Use staff ID 2 which should have STAFF role (not OWNER_ADMIN)
+            response = await async_client.post(
+                f"/api/v1/business/{test_uuid}/activate",
+                headers=get_auth_headers(2),  # Use staff ID 2 for STAFF role
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            assert "Owner admin access required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()

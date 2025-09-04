@@ -553,6 +553,13 @@ class SchedulingEngineService:
         )
         return result.scalar_one_or_none()
 
+    async def _get_business_by_id(self, business_id: int) -> Optional[Business]:
+        """Get business by ID."""
+        result = await self.db.execute(
+            select(Business).filter(Business.id == business_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_business_hours(self, query: BusinessHoursQuery) -> dict[str, Any]:
         """Get business hours for a specific date."""
         query_business = select(Business).where(Business.uuid == query.business_uuid)

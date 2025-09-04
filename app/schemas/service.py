@@ -18,7 +18,9 @@ class ServiceCategoryBase(BaseModel):
 
 
 class ServiceCategoryCreate(ServiceCategoryBase):
-    business_id: int
+    business_id: Optional[int] = Field(
+        None, description="Business ID (set by dependency injection)"
+    )
 
 
 class ServiceCategoryUpdate(BaseModel):
@@ -68,7 +70,9 @@ class ServiceBase(BaseModel):
 
 
 class ServiceCreate(ServiceBase):
-    business_id: int
+    business_id: Optional[int] = Field(
+        None, description="Business ID (set by dependency injection)"
+    )
 
 
 class ServiceUpdate(BaseModel):
@@ -115,7 +119,9 @@ class ServiceAddonBase(BaseModel):
 
 
 class ServiceAddonCreate(ServiceAddonBase):
-    business_id: int
+    business_id: Optional[int] = Field(
+        None, description="Business ID (set by dependency injection)"
+    )
     service_id: int
 
 

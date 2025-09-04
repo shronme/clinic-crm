@@ -528,7 +528,7 @@ class TestAppointmentAPIStatusTransitions:
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/status",
             json=transition_data,
-            headers=headers
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -556,7 +556,7 @@ class TestAppointmentAPIStatusTransitions:
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/status",
             json=transition_data,
-            headers=headers
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -583,7 +583,7 @@ class TestAppointmentAPIStatusTransitions:
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/status",
             json=transition_data,
-            headers=headers
+            headers=headers,
         )
 
         assert response.status_code == 400
@@ -648,7 +648,7 @@ class TestAppointmentAPISlotLocking:
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/lock",
             json=lock_data,
-            headers=headers
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -667,7 +667,7 @@ class TestAppointmentAPISlotLocking:
         headers = get_auth_headers(test_appointment.staff_id)  # Staff member
         response = await client.delete(
             f"/api/v1/appointments/{test_appointment.uuid}/lock?session_id=test_session_123",
-            headers=headers
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -679,22 +679,55 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_check_cancellation_policy_can_cancel(
-        self, client: AsyncClient, db, test_appointment, mock_current_business
+        self,
+        client: AsyncClient,
+        db,
+        test_business,
+        test_customer,
+        test_staff,
+        test_service,
+        mock_current_business,
     ):
         """Test cancellation policy check when appointment can be cancelled."""
-        # Set appointment far enough in future
-        future_datetime = datetime.utcnow() + timedelta(days=2)
-        test_appointment.scheduled_datetime = future_datetime
+        from datetime import timezone
+        from uuid import uuid4
+        from app.models.appointment import Appointment, AppointmentStatus
+        from decimal import Decimal
+
+        # Create a fresh appointment for this test
+        future_datetime = datetime.now(timezone.utc) + timedelta(days=2)
+        scheduled_time = future_datetime.replace(
+            hour=14, minute=0, second=0, microsecond=0
+        )
+        estimated_end = scheduled_time + timedelta(minutes=30)
+
+        appointment = Appointment(
+            uuid=uuid4(),
+            business_id=test_business.id,
+            customer_id=test_customer.id,
+            staff_id=test_staff.id,
+            service_id=test_service.id,
+            scheduled_datetime=scheduled_time,
+            estimated_end_datetime=estimated_end,
+            duration_minutes=30,
+            total_price=Decimal("50.00"),
+            status=AppointmentStatus.TENTATIVE.value,
+            booking_source="admin",
+        )
+        db.add(appointment)
         await db.flush()
+        await db.refresh(appointment)
 
         check_data = {
-            "appointment_uuid": str(test_appointment.uuid),
-            "current_time": datetime.utcnow().isoformat(),
+            "appointment_uuid": str(appointment.uuid),
+            "current_time": datetime.now(timezone.utc).isoformat(),
         }
 
-        headers = get_auth_headers(test_appointment.staff_id)
+        headers = get_auth_headers(appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy", json=check_data, headers=headers
+            "/api/v1/appointments/check-cancellation-policy",
+            json=check_data,
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -703,22 +736,55 @@ class TestAppointmentAPIUtilities:
 
     @pytest.mark.asyncio
     async def test_check_cancellation_policy_cannot_cancel(
-        self, client: AsyncClient, db, test_appointment, mock_current_business
+        self,
+        client: AsyncClient,
+        db,
+        test_business,
+        test_customer,
+        test_staff,
+        test_service,
+        mock_current_business,
     ):
         """Test cancellation policy check when appointment cannot be cancelled."""
-        # Set appointment soon (within cancellation window)
-        near_datetime = datetime.utcnow() + timedelta(hours=2)
-        test_appointment.scheduled_datetime = near_datetime
+        from datetime import timezone
+        from uuid import uuid4
+        from app.models.appointment import Appointment, AppointmentStatus
+        from decimal import Decimal
+
+        # Create a fresh appointment for this test - scheduled soon (within cancellation window)
+        near_datetime = datetime.now(timezone.utc) + timedelta(hours=2)
+        scheduled_time = near_datetime.replace(
+            hour=14, minute=0, second=0, microsecond=0
+        )
+        estimated_end = scheduled_time + timedelta(minutes=30)
+
+        appointment = Appointment(
+            uuid=uuid4(),
+            business_id=test_business.id,
+            customer_id=test_customer.id,
+            staff_id=test_staff.id,
+            service_id=test_service.id,
+            scheduled_datetime=scheduled_time,
+            estimated_end_datetime=estimated_end,
+            duration_minutes=30,
+            total_price=Decimal("50.00"),
+            status=AppointmentStatus.TENTATIVE.value,
+            booking_source="admin",
+        )
+        db.add(appointment)
         await db.flush()
+        await db.refresh(appointment)
 
         check_data = {
-            "appointment_uuid": str(test_appointment.uuid),
-            "current_time": datetime.utcnow().isoformat(),
+            "appointment_uuid": str(appointment.uuid),
+            "current_time": datetime.now(timezone.utc).isoformat(),
         }
 
-        headers = get_auth_headers(test_appointment.staff_id)
+        headers = get_auth_headers(appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy", json=check_data, headers=headers
+            "/api/v1/appointments/check-cancellation-policy",
+            json=check_data,
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -810,7 +876,9 @@ class TestAppointmentAPIUtilities:
         await db.flush()
 
         headers = get_auth_headers(test_appointment.staff_id)
-        response = await client.get("/api/v1/appointments/analytics/stats", headers=headers)
+        response = await client.get(
+            "/api/v1/appointments/analytics/stats", headers=headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -831,7 +899,9 @@ class TestAppointmentAPIDelete:
     ):
         """Test deleting appointment (soft delete by cancellation)."""
         headers = get_auth_headers(test_appointment.staff_id)
-        response = await client.delete(f"/api/v1/appointments/{test_appointment.uuid}", headers=headers)
+        response = await client.delete(
+            f"/api/v1/appointments/{test_appointment.uuid}", headers=headers
+        )
 
         assert response.status_code == 200
         assert "deleted successfully" in response.json()["message"]
@@ -848,7 +918,9 @@ class TestAppointmentAPIDelete:
         """Test deleting non-existent appointment."""
         fake_uuid = uuid4()
         headers = get_auth_headers(1)  # Use any staff ID for non-existent test
-        response = await client.delete(f"/api/v1/appointments/{fake_uuid}", headers=headers)
+        response = await client.delete(
+            f"/api/v1/appointments/{fake_uuid}", headers=headers
+        )
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()

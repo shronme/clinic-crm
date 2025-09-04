@@ -1,4 +1,3 @@
-
 import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,6 +11,7 @@ from app.models.staff import Staff
 # Import Descope only if available
 try:
     from descope import AuthException, DescopeClient
+
     DESCOPE_AVAILABLE = True
 except ImportError:
     AuthException = Exception  # Fallback for type hints
@@ -59,7 +59,7 @@ async def get_current_staff(
             logger.warning("Invalid JWT token provided")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token"
+                detail="Invalid authentication token",
             )
 
         # Extract user information from JWT
@@ -76,39 +76,36 @@ async def get_current_staff(
             logger.error(
                 "Staff ID not found in JWT token",
                 descope_user_id=descope_user_id,
-                email=email
+                email=email,
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Staff information not found in token"
+                detail="Staff information not found in token",
             )
 
         # Look up staff from database
-        result = await db.execute(
-            select(Staff).where(Staff.id == int(staff_id))
-        )
+        result = await db.execute(select(Staff).where(Staff.id == int(staff_id)))
         staff = result.scalar_one_or_none()
 
         if not staff:
             logger.error(
                 "Staff not found in database",
                 staff_id=staff_id,
-                descope_user_id=descope_user_id
+                descope_user_id=descope_user_id,
             )
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Staff member not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found"
             )
 
         if not staff.is_active:
             logger.warning(
                 "Inactive staff attempted access",
                 staff_id=staff_id,
-                business_id=staff.business_id
+                business_id=staff.business_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Staff account is inactive"
+                detail="Staff account is inactive",
             )
 
         # Verify business_id matches (security check)
@@ -117,11 +114,10 @@ async def get_current_staff(
                 "Business ID mismatch",
                 token_business_id=business_id,
                 staff_business_id=staff.business_id,
-                staff_id=staff_id
+                staff_id=staff_id,
             )
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Business access mismatch"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Business access mismatch"
             )
 
         logger.info(
@@ -129,7 +125,7 @@ async def get_current_staff(
             staff_id=staff.id,
             staff_name=staff.name,
             business_id=staff.business_id,
-            role=staff.role
+            role=staff.role,
         )
 
         return staff
@@ -137,8 +133,7 @@ async def get_current_staff(
     except AuthException as e:
         logger.error("Descope authentication error", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed"
         )
     except HTTPException:
         raise
@@ -146,7 +141,7 @@ async def get_current_staff(
         logger.error("Unexpected authentication error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication service error"
+            detail="Authentication service error",
         )
 
 
@@ -159,8 +154,7 @@ async def _get_staff_dev_fallback(token: str, db: AsyncSession) -> Staff:
         staff_id = int(token)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid staff ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid staff ID format"
         )
 
     # Look up staff from database
@@ -170,8 +164,7 @@ async def _get_staff_dev_fallback(token: str, db: AsyncSession) -> Staff:
 
         if not staff:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Staff member not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found"
             )
 
         if not staff.is_active:

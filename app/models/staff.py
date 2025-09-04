@@ -38,6 +38,9 @@ class Staff(Base):
     email = Column(String, unique=True, nullable=True)
     phone = Column(String, nullable=True)
 
+    # Descope integration
+    descope_user_id = Column(String, unique=True, nullable=True, index=True)
+
     # Profile information
     avatar_url = Column(String, nullable=True)
     bio = Column(Text, nullable=True)
