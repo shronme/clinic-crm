@@ -71,7 +71,7 @@ async def setup_test_data(db):
         business_hours = WorkingHours(
             owner_type=OwnerType.BUSINESS.value,
             owner_id=business.id,
-            weekday=str(weekday.value),
+            weekday=weekday.name,
             start_time=time(9, 0),
             end_time=time(18, 0),
             break_start_time=time(12, 0),
@@ -91,7 +91,7 @@ async def setup_test_data(db):
         staff_hours = WorkingHours(
             owner_type=OwnerType.STAFF.value,
             owner_id=staff.id,
-            weekday=str(weekday.value),
+            weekday=weekday.name,
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),
@@ -238,13 +238,10 @@ class TestSchedulingAPIEndpoints:
         staff = setup_test_data["staff"]
         service = setup_test_data["service"]
 
-        # Request appointment in 30 minutes (violates 1-hour lead time)
+        # Request appointment in 30 minutes (should violate 1-hour lead time)
         future_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(
             minutes=30
         )
-        if future_time.weekday() >= 5:  # Weekend
-            future_time += timedelta(days=2)
-        future_time = future_time.replace(hour=10, minute=0, second=0, microsecond=0)
 
         request_data = {
             "staff_uuid": str(staff.uuid),
