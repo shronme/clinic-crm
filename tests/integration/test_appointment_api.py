@@ -207,7 +207,7 @@ class TestAppointmentAPICreate:
             "customer_notes": "First visit",
         }
 
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.post(
             "/api/v1/appointments/", json=appointment_data, headers=headers
         )
@@ -246,7 +246,7 @@ class TestAppointmentAPICreate:
         }
 
         session_id = "test_session_123"
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.post(
             f"/api/v1/appointments/?session_id={session_id}",
             json=appointment_data,
@@ -260,7 +260,7 @@ class TestAppointmentAPICreate:
 
     @pytest.mark.asyncio
     async def test_create_appointment_validation_error(
-        self, client: AsyncClient, db, test_business, mock_current_business
+        self, client: AsyncClient, db, test_business, test_staff, mock_current_business
     ):
         """Test appointment creation with validation errors."""
         appointment_data = {
@@ -272,11 +272,13 @@ class TestAppointmentAPICreate:
             "total_price": "50.00",
         }
 
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(test_staff.id)  # Staff member
         response = await client.post(
             "/api/v1/appointments/", json=appointment_data, headers=headers
         )
 
+        if response.status_code != 400:
+            print(f"Expected 400, got {response.status_code}: {response.text}")
         assert response.status_code == 400
         assert "not found" in response.json()["detail"].lower()
 
@@ -294,7 +296,7 @@ class TestAppointmentAPIRead:
         mock_current_business,
     ):
         """Test getting appointments list."""
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.get("/api/v1/appointments/", headers=headers)
 
         assert response.status_code == 200
@@ -313,7 +315,7 @@ class TestAppointmentAPIRead:
         mock_current_business,
     ):
         """Test getting appointments with filters."""
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         # Create additional appointment with different status
         from datetime import timezone
 
@@ -357,7 +359,7 @@ class TestAppointmentAPIRead:
         mock_current_business,
     ):
         """Test getting appointments with search query."""
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.get("/api/v1/appointments/?query=John", headers=headers)
 
         assert response.status_code == 200
@@ -374,7 +376,7 @@ class TestAppointmentAPIRead:
         mock_current_business,
     ):
         """Test appointments pagination."""
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.get(
             "/api/v1/appointments/?page=1&page_size=10", headers=headers
         )
@@ -395,7 +397,7 @@ class TestAppointmentAPIRead:
         mock_current_business,
     ):
         """Test getting single appointment by UUID."""
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.get(
             f"/api/v1/appointments/{test_appointment.uuid}", headers=headers
         )
@@ -414,7 +416,7 @@ class TestAppointmentAPIRead:
     ):
         """Test getting non-existent appointment."""
         fake_uuid = uuid4()
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.get(
             f"/api/v1/appointments/{fake_uuid}", headers=headers
         )
@@ -442,7 +444,7 @@ class TestAppointmentAPIUpdate:
             "internal_notes": "Staff notes updated",
         }
 
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.put(
             f"/api/v1/appointments/{test_appointment.uuid}",
             json=update_data,
@@ -478,7 +480,7 @@ class TestAppointmentAPIUpdate:
             "scheduled_datetime": new_datetime,
         }
 
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.put(
             f"/api/v1/appointments/{test_appointment.uuid}",
             json=update_data,
@@ -495,14 +497,15 @@ class TestAppointmentAPIUpdate:
 
     @pytest.mark.asyncio
     async def test_update_appointment_not_found(
-        self, client: AsyncClient, db, mock_current_business
+        self, client: AsyncClient, db, test_staff, mock_current_business
     ):
         """Test updating non-existent appointment."""
         fake_uuid = uuid4()
         update_data = {"total_price": "60.00"}
-
+        
+        headers = get_auth_headers(test_staff.id)  # Staff member
         response = await client.put(
-            f"/api/v1/appointments/{fake_uuid}", json=update_data
+            f"/api/v1/appointments/{fake_uuid}", json=update_data, headers=headers
         )
 
         assert response.status_code == 404
@@ -611,7 +614,7 @@ class TestAppointmentAPIStatusTransitions:
             "notify_customer": True,
         }
 
-        headers = {"X-Business-ID": str(test_business.id)}
+        headers = get_auth_headers(1)  # Staff member
         response = await client.post(
             f"/api/v1/appointments/{test_appointment.uuid}/reschedule",
             json=reschedule_data,
@@ -641,8 +644,11 @@ class TestAppointmentAPISlotLocking:
             "lock_duration_minutes": 20,
         }
 
+        headers = get_auth_headers(test_appointment.staff_id)  # Staff member
         response = await client.post(
-            f"/api/v1/appointments/{test_appointment.uuid}/lock", json=lock_data
+            f"/api/v1/appointments/{test_appointment.uuid}/lock", 
+            json=lock_data, 
+            headers=headers
         )
 
         assert response.status_code == 200
@@ -658,8 +664,10 @@ class TestAppointmentAPISlotLocking:
         test_appointment.locked_by_session_id = "test_session_123"
         await db.flush()
 
+        headers = get_auth_headers(test_appointment.staff_id)  # Staff member
         response = await client.delete(
-            f"/api/v1/appointments/{test_appointment.uuid}/lock?session_id=test_session_123"
+            f"/api/v1/appointments/{test_appointment.uuid}/lock?session_id=test_session_123",
+            headers=headers
         )
 
         assert response.status_code == 200
@@ -684,8 +692,9 @@ class TestAppointmentAPIUtilities:
             "current_time": datetime.utcnow().isoformat(),
         }
 
+        headers = get_auth_headers(test_appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy", json=check_data
+            "/api/v1/appointments/check-cancellation-policy", json=check_data, headers=headers
         )
 
         assert response.status_code == 200
@@ -707,8 +716,9 @@ class TestAppointmentAPIUtilities:
             "current_time": datetime.utcnow().isoformat(),
         }
 
+        headers = get_auth_headers(test_appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/check-cancellation-policy", json=check_data
+            "/api/v1/appointments/check-cancellation-policy", json=check_data, headers=headers
         )
 
         assert response.status_code == 200
@@ -727,8 +737,9 @@ class TestAppointmentAPIUtilities:
             "duration_minutes": 30,
         }
 
+        headers = get_auth_headers(test_appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/check-conflicts", json=check_data
+            "/api/v1/appointments/check-conflicts", json=check_data, headers=headers
         )
 
         assert response.status_code == 200
@@ -766,8 +777,9 @@ class TestAppointmentAPIUtilities:
             "notify_customers": True,
         }
 
+        headers = get_auth_headers(test_appointment.staff_id)
         response = await client.post(
-            "/api/v1/appointments/bulk-status-update", json=bulk_data
+            "/api/v1/appointments/bulk-status-update", json=bulk_data, headers=headers
         )
 
         assert response.status_code == 200
@@ -797,7 +809,8 @@ class TestAppointmentAPIUtilities:
         db.add(completed_appointment)
         await db.flush()
 
-        response = await client.get("/api/v1/appointments/analytics/stats")
+        headers = get_auth_headers(test_appointment.staff_id)
+        response = await client.get("/api/v1/appointments/analytics/stats", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -817,7 +830,8 @@ class TestAppointmentAPIDelete:
         self, client: AsyncClient, db, test_appointment, mock_current_business
     ):
         """Test deleting appointment (soft delete by cancellation)."""
-        response = await client.delete(f"/api/v1/appointments/{test_appointment.uuid}")
+        headers = get_auth_headers(test_appointment.staff_id)
+        response = await client.delete(f"/api/v1/appointments/{test_appointment.uuid}", headers=headers)
 
         assert response.status_code == 200
         assert "deleted successfully" in response.json()["message"]
@@ -833,7 +847,8 @@ class TestAppointmentAPIDelete:
     ):
         """Test deleting non-existent appointment."""
         fake_uuid = uuid4()
-        response = await client.delete(f"/api/v1/appointments/{fake_uuid}")
+        headers = get_auth_headers(1)  # Use any staff ID for non-existent test
+        response = await client.delete(f"/api/v1/appointments/{fake_uuid}", headers=headers)
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()

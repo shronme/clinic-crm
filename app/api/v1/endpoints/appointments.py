@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import get_current_staff
-from app.api.deps.business import BusinessContext, get_business_from_header
 from app.api.deps.database import get_db
 from app.models.staff import Staff
 from app.schemas.appointment import (
@@ -39,11 +38,11 @@ router = APIRouter()
 async def create_appointment(
     appointment_data: AppointmentCreate,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
     session_id: Optional[str] = Query(None, description="Session ID for slot locking"),
 ):
     """Create new appointment with validation and conflict checking."""
-    appointment_data.business_id = business_context.business_id
+    appointment_data.business_id = current_staff.business_id
 
     service = AppointmentService(db)
     try:
@@ -63,7 +62,7 @@ async def create_appointment(
 @router.get("/", response_model=AppointmentList)
 async def get_appointments(
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
     # Search parameters
     query: Optional[str] = Query(
         None, description="Search in customer, staff, or service names"
@@ -91,7 +90,7 @@ async def get_appointments(
     """Get appointments with filtering, search, and pagination."""
 
     filters = AppointmentFilters(
-        business_id=business_context.business_id,
+        business_id=current_staff.business_id,
         customer_id=customer_id,
         staff_id=staff_id,
         service_id=service_id,
@@ -115,7 +114,7 @@ async def get_appointments(
 
     service = AppointmentService(db)
     appointments, total_count = await service.get_appointments(
-        search, business_context.business_id
+        search, current_staff.business_id
     )
 
     total_pages = (total_count + page_size - 1) // page_size
@@ -133,7 +132,7 @@ async def get_appointments(
 async def get_appointment(
     appointment_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Get specific appointment with all relationships."""
 
@@ -145,7 +144,7 @@ async def get_appointment(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
         )
 
-    if appointment.business_id != business_context.business_id:
+    if appointment.business_id != current_staff.business_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
@@ -158,7 +157,7 @@ async def update_appointment(
     appointment_uuid: UUID,
     update_data: AppointmentUpdate,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Update appointment details."""
 
@@ -168,7 +167,7 @@ async def update_appointment(
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -232,7 +231,7 @@ async def reschedule_appointment(
     appointment_uuid: UUID,
     reschedule_data: AppointmentReschedule,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Reschedule appointment to new datetime."""
 
@@ -242,7 +241,7 @@ async def reschedule_appointment(
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -269,7 +268,7 @@ async def lock_appointment_slot(
     appointment_uuid: UUID,
     lock_data: AppointmentSlotLock,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Lock appointment slot to prevent conflicts during booking process."""
 
@@ -279,7 +278,7 @@ async def lock_appointment_slot(
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -300,7 +299,7 @@ async def lock_appointment_slot(
 async def unlock_appointment_slot(
     appointment_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
     session_id: Optional[str] = Query(None),
 ):
     """Unlock appointment slot."""
@@ -311,7 +310,7 @@ async def unlock_appointment_slot(
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -331,7 +330,7 @@ async def unlock_appointment_slot(
 async def delete_appointment(
     appointment_uuid: UUID,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Delete appointment (soft delete by cancelling)."""
 
@@ -341,7 +340,7 @@ async def delete_appointment(
     existing_appointment = await service.get_appointment_by_uuid(str(appointment_uuid))
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -362,7 +361,7 @@ async def delete_appointment(
 async def check_cancellation_policy(
     check: CancellationPolicyCheck,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Check if appointment can be cancelled based on business policy."""
 
@@ -374,7 +373,7 @@ async def check_cancellation_policy(
     )
     if (
         not existing_appointment
-        or existing_appointment.business_id != business_context.business_id
+        or existing_appointment.business_id != current_staff.business_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -387,7 +386,7 @@ async def check_cancellation_policy(
 async def check_appointment_conflicts(
     check: ConflictCheckRequest,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Check for appointment conflicts with existing bookings."""
 
@@ -399,7 +398,7 @@ async def check_appointment_conflicts(
 async def bulk_update_appointment_status(
     bulk_update: BulkAppointmentStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
 ):
     """Bulk update appointment statuses."""
 
@@ -412,7 +411,7 @@ async def bulk_update_appointment_status(
 @router.get("/analytics/stats", response_model=AppointmentStats)
 async def get_appointment_stats(
     db: AsyncSession = Depends(get_db),
-    business_context: BusinessContext = Depends(get_business_from_header),
+    current_staff: Staff = Depends(get_current_staff),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
 ):
@@ -420,5 +419,5 @@ async def get_appointment_stats(
 
     service = AppointmentService(db)
     return await service.get_appointment_stats(
-        business_context.business_id, start_date, end_date
+        current_staff.business_id, start_date, end_date
     )
