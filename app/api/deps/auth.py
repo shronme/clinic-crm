@@ -50,57 +50,81 @@ async def get_current_staff(
         return await _get_staff_dev_fallback(credentials.credentials, db)
 
     token = credentials.credentials
-
+    logger.info(f"Token: {token}")
     try:
         # Validate JWT token with Descope
+        # If validation succeeds, jwt_response contains the session data
+        # If validation fails, an AuthException is raised
         jwt_response = descope_client.validate_session(token)
 
-        if not jwt_response.valid:
-            logger.warning("Invalid JWT token provided")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
+        # Debug: Log the response structure and all available fields
+        logger.info(
+            "JWT response type and content",
+            response_type=type(jwt_response).__name__,
+            response_keys=(
+                list(jwt_response.keys())
+                if isinstance(jwt_response, dict)
+                else "Not a dict"
+            ),
+            full_response=jwt_response,
+        )
 
-        # Extract user information from JWT
-        user_info = jwt_response.claims
+        # The response should contain the session token data
+        # Extract user information from the validated session
+        user_info = jwt_response
         descope_user_id = user_info.get("sub")  # Subject (user ID)
-        email = user_info.get("email")
+
+        # Extract email and name from nsec claim (Descope custom claims)
+        nsec_claims = user_info.get("nsec", {})
+        email = nsec_claims.get("email") or user_info.get("email")
 
         # Extract custom claims (business_id, staff_id, role)
         custom_attrs = user_info.get("customAttributes", {})
         staff_id = custom_attrs.get("staff_id")
         business_id = custom_attrs.get("business_id")
 
+        # If no staff_id in token, try to find by descope_user_id
         if not staff_id:
-            logger.error(
-                "Staff ID not found in JWT token",
+            logger.info(
+                "No staff_id in token, looking up by descope_user_id",
                 descope_user_id=descope_user_id,
                 email=email,
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Staff information not found in token",
+            result = await db.execute(
+                select(Staff).where(Staff.descope_user_id == descope_user_id)
             )
+            staff = result.scalar_one_or_none()
 
-        # Look up staff from database
-        result = await db.execute(select(Staff).where(Staff.id == int(staff_id)))
-        staff = result.scalar_one_or_none()
+            if not staff:
+                logger.error(
+                    "Staff not found for Descope user",
+                    descope_user_id=descope_user_id,
+                    email=email,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User account not found. Please complete setup first.",
+                )
+        else:
+            # Look up staff from database using staff_id
+            result = await db.execute(select(Staff).where(Staff.id == int(staff_id)))
+            staff = result.scalar_one_or_none()
 
-        if not staff:
-            logger.error(
-                "Staff not found in database",
-                staff_id=staff_id,
-                descope_user_id=descope_user_id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found"
-            )
+            if not staff:
+                logger.error(
+                    "Staff not found in database",
+                    staff_id=staff_id,
+                    descope_user_id=descope_user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Staff member not found",
+                )
 
         if not staff.is_active:
             logger.warning(
                 "Inactive staff attempted access",
-                staff_id=staff_id,
+                staff_id=staff.id,
                 business_id=staff.business_id,
             )
             raise HTTPException(
@@ -108,13 +132,13 @@ async def get_current_staff(
                 detail="Staff account is inactive",
             )
 
-        # Verify business_id matches (security check)
+        # Verify business_id matches (security check) if provided in token
         if business_id and staff.business_id != int(business_id):
             logger.error(
                 "Business ID mismatch",
                 token_business_id=business_id,
                 staff_business_id=staff.business_id,
-                staff_id=staff_id,
+                staff_id=staff.id,
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Business access mismatch"
@@ -132,6 +156,12 @@ async def get_current_staff(
 
     except AuthException as e:
         logger.error("Descope authentication error", error=str(e))
+        # For debugging: let's see what a valid response looks like
+        logger.info(
+            "AuthException details",
+            exception_type=type(e).__name__,
+            exception_args=str(e),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed"
         )

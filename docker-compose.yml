@@ -53,8 +53,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app
-      - ./uploads:/uploads
+      - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -80,7 +79,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app
+      - .:/app
     command: celery -A app.core.celery worker --loglevel=info
 
   # Celery Flower for monitoring background tasks
@@ -103,7 +102,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./app:/app
+      - .:/app
     command: celery -A app.core.celery flower --port=5555
 
 volumes:

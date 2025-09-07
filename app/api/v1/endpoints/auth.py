@@ -1,6 +1,67 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps.database import get_db
+from app.api.deps.auth import get_current_staff
+from app.services.auth import AuthService
+from app.schemas.staff import StaffResponse
+from app.models.staff import Staff
 
 router = APIRouter()
+security = HTTPBearer()
+
+
+@router.get("/me", response_model=StaffResponse)
+async def get_current_user_info(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current authenticated user information. Auto-setup if user doesn't exist."""
+    token = credentials.credentials
+
+    # Validate Descope token and extract user info
+    user_info = await AuthService.validate_descope_token(token)
+    descope_user_id = user_info["descope_user_id"]
+
+    # Try to get existing staff member
+    staff = await AuthService.get_staff_by_descope_user_id(descope_user_id, db)
+
+    if not staff:
+        # Staff doesn't exist, auto-setup
+        staff = await AuthService.get_or_create_user_from_descope(
+            descope_user_id=descope_user_id,
+            email=user_info["email"],
+            name=user_info["name"],
+            db=db,
+        )
+
+    return StaffResponse.from_staff(staff)
+
+
+@router.post("/setup", response_model=StaffResponse)
+async def setup_new_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Setup new user account after Descope signup.
+    Creates business and staff record with OWNER_ADMIN role.
+    """
+    token = credentials.credentials
+
+    # Validate Descope token and extract user info
+    user_info = await AuthService.validate_descope_token(token)
+
+    # Get or create user
+    staff = await AuthService.get_or_create_user_from_descope(
+        descope_user_id=user_info["descope_user_id"],
+        email=user_info["email"],
+        name=user_info["name"],
+        db=db,
+    )
+
+    return StaffResponse.from_staff(staff)
 
 
 @router.post("/login")

@@ -3,10 +3,10 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/clinic_crm
+ENV PYTHONPATH=/app
 
 # Set work directory
-WORKDIR /clinic_crm
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update \

@@ -4,10 +4,19 @@ import sys
 from datetime import datetime
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 # Add the app directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+# Load test environment variables before importing app modules
+from dotenv import load_dotenv
+
+load_dotenv("test.env")
 
 from app.core.database import Base, get_db
 from app.main import app

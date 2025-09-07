@@ -75,11 +75,14 @@ async def test_business_working_hours(db, test_business):
 async def test_staff(db, test_business):
     """Create test staff."""
     staff = Staff(
+        id=1,
         uuid=uuid4(),
         name="Jane Stylist",
         business_id=test_business.id,
         email="jane@testsalon.com",
         role="STAFF",
+        is_active=True,
+        is_bookable=True,
     )
     db.add(staff)
     await db.flush()

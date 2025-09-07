@@ -49,6 +49,60 @@ class Staff(StaffBase):
         from_attributes = True
 
 
+class StaffResponse(BaseModel):
+    """Response schema for staff data matching frontend User interface"""
+
+    id: str  # Convert to string for frontend compatibility
+    email: Optional[str] = None
+    role: str  # Convert enum to string
+    business_id: str  # Convert to string for frontend compatibility
+    staff_id: Optional[str] = None  # Additional field for frontend
+    permissions: list[str] = []  # Default empty permissions list
+    name: str
+    uuid: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_staff(cls, staff: "Staff") -> "StaffResponse":
+        """Create StaffResponse from Staff model"""
+        # Map role to frontend-compatible string
+        role_mapping = {
+            "OWNER_ADMIN": "owner",
+            "STAFF": "staff",
+            "FRONT_DESK": "front_desk",
+        }
+
+        # Set permissions based on role
+        permissions = []
+        if staff.role == "OWNER_ADMIN":
+            permissions = ["*"]  # Owner has all permissions
+        elif staff.role == "STAFF":
+            permissions = [
+                "read_appointments",
+                "create_appointments",
+                "update_appointments",
+            ]
+        elif staff.role == "FRONT_DESK":
+            permissions = ["read_appointments", "create_appointments", "read_customers"]
+
+        return cls(
+            id=str(staff.id),
+            email=staff.email,
+            role=role_mapping.get(staff.role, "staff"),
+            business_id=str(staff.business_id),
+            staff_id=str(staff.id),
+            permissions=permissions,
+            name=staff.name,
+            uuid=staff.uuid,
+            created_at=staff.created_at,
+            updated_at=staff.updated_at,
+        )
+
+
 class StaffSummary(BaseModel):
     id: int
     uuid: UUID
