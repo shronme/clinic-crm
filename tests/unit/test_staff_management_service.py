@@ -612,3 +612,281 @@ class TestStaffManagementService:
             )
 
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_create_staff_with_descope_success(self, mock_db_session):
+        """Test successful staff creation with Descope user provisioning."""
+        service = StaffManagementService(mock_db_session)
+
+        staff_data = StaffCreate(
+            business_id=1,
+            name="New Staff with Descope",
+            email="newstaff@test.com",
+            role=StaffRole.STAFF.value,
+        )
+
+        # Mock database operations
+        with patch.object(mock_db_session, "execute") as mock_execute:
+            # Mock the execute result for email uniqueness check
+            mock_result = Mock()
+            mock_result.scalar_one_or_none.return_value = None
+            mock_execute.return_value = mock_result
+
+            # Mock other database operations
+            mock_db_session.add = AsyncMock()
+            mock_db_session.commit = AsyncMock()
+            mock_db_session.refresh = AsyncMock()
+
+            # Mock the refresh to set the created staff
+            async def mock_refresh(staff_obj):
+                staff_obj.id = 1
+                staff_obj.created_at = datetime.now()
+                staff_obj.updated_at = datetime.now()
+
+            mock_db_session.refresh.side_effect = mock_refresh
+
+            # Mock Descope client
+            mock_descope_user = {"userId": "descope_user_123"}
+
+            with patch("app.services.staff_management.descope_client") as mock_descope:
+                mock_descope.management.user.create.return_value = mock_descope_user
+
+                # Mock the get_staff method that's called at the end of create_staff
+                expected_staff = Staff(
+                    id=1,
+                    business_id=1,
+                    name="New Staff with Descope",
+                    email="newstaff@test.com",
+                    role=StaffRole.STAFF.value,
+                    is_active=True,
+                    is_bookable=True,
+                    descope_user_id="descope_user_123",
+                )
+
+                with patch.object(
+                    service, "get_staff", return_value=expected_staff
+                ) as mock_get_staff:
+                    result = await service.create_staff(
+                        staff_data, created_by_staff_id=2
+                    )
+
+                    assert result.name == "New Staff with Descope"
+                    assert result.email == "newstaff@test.com"
+                    assert result.role == StaffRole.STAFF.value
+                    assert result.descope_user_id == "descope_user_123"
+
+                    # Verify Descope user was created with correct attributes
+                    mock_descope.management.user.create.assert_called_once_with(
+                        login_id="newstaff@test.com",
+                        email="newstaff@test.com",
+                        name="New Staff with Descope",
+                        custom_attributes={
+                            "staff_id": "1",
+                            "business_id": "1",
+                            "role": "STAFF",
+                        },
+                    )
+
+                    mock_db_session.add.assert_called_once()
+                    mock_db_session.commit.assert_called()
+                    mock_get_staff.assert_called_once_with(1, 1)
+
+    @pytest.mark.asyncio
+    async def test_create_staff_without_email_no_descope(self, mock_db_session):
+        """Test staff creation without email (should not create Descope user)."""
+        service = StaffManagementService(mock_db_session)
+
+        staff_data = StaffCreate(
+            business_id=1,
+            name="Staff Without Email",
+            email=None,
+            role=StaffRole.FRONT_DESK.value,
+        )
+
+        # Mock database operations
+        with patch.object(mock_db_session, "execute") as mock_execute:
+            # Mock the execute result for email uniqueness check
+            mock_result = Mock()
+            mock_result.scalar_one_or_none.return_value = None
+            mock_execute.return_value = mock_result
+
+            # Mock other database operations
+            mock_db_session.add = AsyncMock()
+            mock_db_session.commit = AsyncMock()
+            mock_db_session.refresh = AsyncMock()
+
+            # Mock the refresh to set the created staff
+            async def mock_refresh(staff_obj):
+                staff_obj.id = 1
+                staff_obj.created_at = datetime.now()
+                staff_obj.updated_at = datetime.now()
+
+            mock_db_session.refresh.side_effect = mock_refresh
+
+            # Mock Descope client
+            with patch("app.services.staff_management.descope_client") as mock_descope:
+                # Mock the get_staff method that's called at the end of create_staff
+                expected_staff = Staff(
+                    id=1,
+                    business_id=1,
+                    name="Staff Without Email",
+                    email=None,
+                    role=StaffRole.FRONT_DESK.value,
+                    is_active=True,
+                    is_bookable=True,
+                    descope_user_id=None,
+                )
+
+                with patch.object(
+                    service, "get_staff", return_value=expected_staff
+                ) as mock_get_staff:
+                    result = await service.create_staff(
+                        staff_data, created_by_staff_id=2
+                    )
+
+                    assert result.name == "Staff Without Email"
+                    assert result.email is None
+                    assert result.role == StaffRole.FRONT_DESK.value
+                    assert result.descope_user_id is None
+
+                    # Verify Descope user was NOT created
+                    mock_descope.management.user.create.assert_not_called()
+
+                    mock_db_session.add.assert_called_once()
+                    mock_db_session.commit.assert_called()
+                    mock_get_staff.assert_called_once_with(1, 1)
+
+    @pytest.mark.asyncio
+    async def test_create_staff_descope_failure_graceful(self, mock_db_session):
+        """Test staff creation when Descope user creation fails (should still create staff)."""
+        service = StaffManagementService(mock_db_session)
+
+        staff_data = StaffCreate(
+            business_id=1,
+            name="Staff with Descope Failure",
+            email="staff@test.com",
+            role=StaffRole.STAFF.value,
+        )
+
+        # Mock database operations
+        with patch.object(mock_db_session, "execute") as mock_execute:
+            # Mock the execute result for email uniqueness check
+            mock_result = Mock()
+            mock_result.scalar_one_or_none.return_value = None
+            mock_execute.return_value = mock_result
+
+            # Mock other database operations
+            mock_db_session.add = AsyncMock()
+            mock_db_session.commit = AsyncMock()
+            mock_db_session.refresh = AsyncMock()
+
+            # Mock the refresh to set the created staff
+            async def mock_refresh(staff_obj):
+                staff_obj.id = 1
+                staff_obj.created_at = datetime.now()
+                staff_obj.updated_at = datetime.now()
+
+            mock_db_session.refresh.side_effect = mock_refresh
+
+            # Mock Descope client to raise an exception
+            with patch("app.services.staff_management.descope_client") as mock_descope:
+                mock_descope.management.user.create.side_effect = Exception(
+                    "Descope API Error"
+                )
+
+                # Mock the get_staff method that's called at the end of create_staff
+                expected_staff = Staff(
+                    id=1,
+                    business_id=1,
+                    name="Staff with Descope Failure",
+                    email="staff@test.com",
+                    role=StaffRole.STAFF.value,
+                    is_active=True,
+                    is_bookable=True,
+                    descope_user_id=None,  # Should be None due to failure
+                )
+
+                with patch.object(
+                    service, "get_staff", return_value=expected_staff
+                ) as mock_get_staff:
+                    result = await service.create_staff(
+                        staff_data, created_by_staff_id=2
+                    )
+
+                    assert result.name == "Staff with Descope Failure"
+                    assert result.email == "staff@test.com"
+                    assert result.role == StaffRole.STAFF.value
+                    assert (
+                        result.descope_user_id is None
+                    )  # Should be None due to failure
+
+                    # Verify Descope user creation was attempted
+                    mock_descope.management.user.create.assert_called_once()
+
+                    # Staff should still be created despite Descope failure
+                    mock_db_session.add.assert_called_once()
+                    mock_db_session.commit.assert_called()
+                    mock_get_staff.assert_called_once_with(1, 1)
+
+    @pytest.mark.asyncio
+    async def test_create_staff_no_descope_client(self, mock_db_session):
+        """Test staff creation when Descope client is not configured."""
+        service = StaffManagementService(mock_db_session)
+
+        staff_data = StaffCreate(
+            business_id=1,
+            name="Staff No Descope Client",
+            email="staff@test.com",
+            role=StaffRole.STAFF.value,
+        )
+
+        # Mock database operations
+        with patch.object(mock_db_session, "execute") as mock_execute:
+            # Mock the execute result for email uniqueness check
+            mock_result = Mock()
+            mock_result.scalar_one_or_none.return_value = None
+            mock_execute.return_value = mock_result
+
+            # Mock other database operations
+            mock_db_session.add = AsyncMock()
+            mock_db_session.commit = AsyncMock()
+            mock_db_session.refresh = AsyncMock()
+
+            # Mock the refresh to set the created staff
+            async def mock_refresh(staff_obj):
+                staff_obj.id = 1
+                staff_obj.created_at = datetime.now()
+                staff_obj.updated_at = datetime.now()
+
+            mock_db_session.refresh.side_effect = mock_refresh
+
+            # Mock Descope client as None (not configured)
+            with patch("app.services.staff_management.descope_client", None):
+                # Mock the get_staff method that's called at the end of create_staff
+                expected_staff = Staff(
+                    id=1,
+                    business_id=1,
+                    name="Staff No Descope Client",
+                    email="staff@test.com",
+                    role=StaffRole.STAFF.value,
+                    is_active=True,
+                    is_bookable=True,
+                    descope_user_id=None,
+                )
+
+                with patch.object(
+                    service, "get_staff", return_value=expected_staff
+                ) as mock_get_staff:
+                    result = await service.create_staff(
+                        staff_data, created_by_staff_id=2
+                    )
+
+                    assert result.name == "Staff No Descope Client"
+                    assert result.email == "staff@test.com"
+                    assert result.role == StaffRole.STAFF.value
+                    assert result.descope_user_id is None
+
+                    # Staff should still be created even without Descope
+                    mock_db_session.add.assert_called_once()
+                    mock_db_session.commit.assert_called()
+                    mock_get_staff.assert_called_once_with(1, 1)

@@ -22,7 +22,7 @@ from app.services.scheduling import SchedulingEngineService
 
 
 def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> datetime:
-    """Get a datetime that's guaranteed to be in the future."""
+    """Get a datetime that's guaranteed to be in the future and on a weekday."""
     now = datetime.now(timezone.utc)
     target_date = now + timedelta(days=days_ahead)
     target_datetime = target_date.replace(
@@ -32,6 +32,12 @@ def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> date
     # If the target time has already passed today, use tomorrow instead
     if target_datetime <= now:
         target_datetime += timedelta(days=1)
+
+    # Ensure we're on a weekday (Monday=0, Friday=4)
+    # If it's Saturday (5) or Sunday (6), move to next Monday
+    if target_datetime.weekday() >= 5:  # Saturday or Sunday
+        days_to_monday = 7 - target_datetime.weekday()  # 1 for Saturday, 2 for Sunday
+        target_datetime += timedelta(days=days_to_monday)
 
     return target_datetime
 

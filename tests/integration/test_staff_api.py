@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -404,3 +405,117 @@ class TestStaffAPI:
         )
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_staff_with_descope_integration(
+        self, client: AsyncClient, test_business, admin_staff
+    ):
+        """Test creating a staff member with Descope user provisioning."""
+        headers = get_auth_headers(2)  # Admin staff
+
+        staff_data = {
+            "business_id": test_business.id,
+            "name": "Staff with Descope",
+            "email": "descope.staff@test.com",
+            "role": "STAFF",
+            "is_bookable": True,
+            "is_active": True,
+        }
+
+        # Mock Descope client for this test
+        with patch("app.services.staff_management.descope_client") as mock_descope:
+            mock_descope_user = {"userId": "descope_user_123"}
+            mock_descope.management.user.create.return_value = mock_descope_user
+
+            response = await client.post(
+                "/api/v1/staff/", json=staff_data, headers=headers
+            )
+
+            # Should succeed even if Descope is mocked
+            assert response.status_code == 201
+
+            created_staff = response.json()
+            assert created_staff["name"] == "Staff with Descope"
+            assert created_staff["email"] == "descope.staff@test.com"
+            assert created_staff["role"] == "STAFF"
+
+            # Verify Descope user creation was attempted
+            mock_descope.management.user.create.assert_called_once_with(
+                login_id="descope.staff@test.com",
+                email="descope.staff@test.com",
+                name="Staff with Descope",
+                custom_attributes={
+                    "staff_id": str(created_staff["id"]),
+                    "business_id": str(test_business.id),
+                    "role": "STAFF",
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_staff_without_email_no_descope(
+        self, client: AsyncClient, test_business, admin_staff
+    ):
+        """Test creating a staff member without email (should not create Descope user)."""
+        headers = get_auth_headers(2)  # Admin staff
+
+        staff_data = {
+            "business_id": test_business.id,
+            "name": "Staff Without Email",
+            "email": None,
+            "role": "FRONT_DESK",
+            "is_bookable": True,
+            "is_active": True,
+        }
+
+        # Mock Descope client for this test
+        with patch("app.services.staff_management.descope_client") as mock_descope:
+            response = await client.post(
+                "/api/v1/staff/", json=staff_data, headers=headers
+            )
+
+            assert response.status_code == 201
+
+            created_staff = response.json()
+            assert created_staff["name"] == "Staff Without Email"
+            assert created_staff["email"] is None
+            assert created_staff["role"] == "FRONT_DESK"
+
+            # Verify Descope user creation was NOT attempted
+            mock_descope.management.user.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_staff_descope_failure_graceful(
+        self, client: AsyncClient, test_business, admin_staff
+    ):
+        """Test staff creation when Descope fails (should still create staff)."""
+        headers = get_auth_headers(2)  # Admin staff
+
+        staff_data = {
+            "business_id": test_business.id,
+            "name": "Staff Descope Failure",
+            "email": "failure@test.com",
+            "role": "STAFF",
+            "is_bookable": True,
+            "is_active": True,
+        }
+
+        # Mock Descope client to raise an exception
+        with patch("app.services.staff_management.descope_client") as mock_descope:
+            mock_descope.management.user.create.side_effect = Exception(
+                "Descope API Error"
+            )
+
+            response = await client.post(
+                "/api/v1/staff/", json=staff_data, headers=headers
+            )
+
+            # Should still succeed despite Descope failure
+            assert response.status_code == 201
+
+            created_staff = response.json()
+            assert created_staff["name"] == "Staff Descope Failure"
+            assert created_staff["email"] == "failure@test.com"
+            assert created_staff["role"] == "STAFF"
+
+            # Verify Descope user creation was attempted
+            mock_descope.management.user.create.assert_called_once()

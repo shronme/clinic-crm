@@ -24,6 +24,21 @@ from app.schemas.staff import (
 )
 from app.services.service import ServiceManagementService
 
+# Import Descope client for user provisioning
+try:
+    from descope import DescopeClient
+    from app.core.config import settings
+
+    # Initialize Descope client if available
+    descope_client = None
+    if settings.DESCOPE_PROJECT_ID and settings.DESCOPE_MANAGEMENT_KEY:
+        descope_client = DescopeClient(
+            project_id=settings.DESCOPE_PROJECT_ID,
+            management_key=settings.DESCOPE_MANAGEMENT_KEY,
+        )
+except ImportError:
+    descope_client = None
+
 
 class StaffManagementService:
     def __init__(self, db: AsyncSession):
@@ -33,7 +48,7 @@ class StaffManagementService:
     async def create_staff(
         self, staff_data: StaffCreate, created_by_staff_id: int
     ) -> Staff:
-        """Create a new staff member."""
+        """Create a new staff member with Descope user provisioning."""
         # Validate unique email within business
         if staff_data.email:
             existing_query = select(Staff).where(
@@ -52,6 +67,7 @@ class StaffManagementService:
                     detail="Email already exists for this business",
                 )
 
+        # 1. Create staff in database first
         staff_dict = staff_data.model_dump()
         # Convert enum values to their string representation
         if "role" in staff_dict and hasattr(staff_dict["role"], "value"):
@@ -60,6 +76,34 @@ class StaffManagementService:
         self.db.add(staff)
         await self.db.commit()
         await self.db.refresh(staff)
+
+        # 2. Create user in Descope with custom claims (if configured)
+        if descope_client and staff_data.email:
+            try:
+                descope_user = descope_client.management.user.create(
+                    login_id=staff_data.email,
+                    email=staff_data.email,
+                    name=staff_data.name,
+                    custom_attributes={
+                        "staff_id": str(staff.id),
+                        "business_id": str(staff.business_id),
+                        "role": staff_dict["role"],
+                    },
+                )
+
+                # 3. Store Descope user ID in staff record
+                staff.descope_user_id = descope_user["userId"]
+                await self.db.commit()
+                await self.db.refresh(staff)
+
+            except Exception as e:
+                # Log the error but don't fail the staff creation
+                # The staff member can still be created without Descope integration
+                print(
+                    f"Warning: Failed to create Descope user for staff "
+                    f"{staff.id}: {str(e)}"
+                )
+                # In production, you might want to use proper logging here
 
         # Return staff with loaded relationships
         return await self.get_staff(staff.id, staff.business_id)
