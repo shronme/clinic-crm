@@ -47,6 +47,11 @@ services:
       - SECRET_KEY=your-secret-key-change-in-production
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Descope configuration (set these in your local .env or here)
+      - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
+      - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
+      - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
+      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,6 +78,10 @@ services:
       - SECRET_KEY=your-secret-key-change-in-production
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
+      - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
+      - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
+      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,6 +105,10 @@ services:
       - SECRET_KEY=your-secret-key-change-in-production
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
+      - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
+      - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
+      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy

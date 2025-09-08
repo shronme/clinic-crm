@@ -23,10 +23,27 @@ logger = structlog.get_logger(__name__)
 # Initialize Descope client (only if configured and available)
 descope_client = None
 if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
-    descope_client = DescopeClient(
-        project_id=settings.DESCOPE_PROJECT_ID,
-        management_key=settings.DESCOPE_MANAGEMENT_KEY,
-    )
+    # Allow overriding base URL for non-default Descope regions
+    client_kwargs = {
+        "project_id": settings.DESCOPE_PROJECT_ID,
+        "management_key": settings.DESCOPE_MANAGEMENT_KEY,
+    }
+    if getattr(settings, "DESCOPE_BASE_URL", None):
+        client_kwargs["base_url"] = settings.DESCOPE_BASE_URL
+    try:
+        descope_client = DescopeClient(**client_kwargs)
+        logger.info(
+            "Descope client initialized",
+            project_id=(
+                settings.DESCOPE_PROJECT_ID[:4] + "***"
+                if settings.DESCOPE_PROJECT_ID
+                else None
+            ),
+            base_url=(settings.DESCOPE_BASE_URL or "default"),
+        )
+    except Exception as e:
+        logger.error("Failed to initialize Descope client", error=str(e))
+        descope_client = None
 
 
 class AuthService:
@@ -96,7 +113,12 @@ class AuthService:
             if descope_client:
                 try:
                     await AuthService._update_descope_user_attributes(
-                        descope_user_id, staff.id, business.id
+                        descope_user_id=descope_user_id,
+                        staff_id=staff.id,
+                        business_id=business.id,
+                        email=email,
+                        name=name,
+                        email_verified=True,
                     )
                 except Exception as e:
                     logger.error(
@@ -142,7 +164,12 @@ class AuthService:
 
     @staticmethod
     async def _update_descope_user_attributes(
-        descope_user_id: str, staff_id: int, business_id: int
+        descope_user_id: str,
+        staff_id: int,
+        business_id: int,
+        email: str | None = None,
+        name: str | None = None,
+        email_verified: bool | None = True,
     ) -> None:
         """
         Update Descope user with custom attributes (staff_id, business_id).
@@ -157,14 +184,26 @@ class AuthService:
             return
 
         try:
-            # Update user with custom attributes
-            descope_client.mgmt.user.update(
-                login_id=descope_user_id,
-                custom_attributes={
+            # Update user profile and custom attributes in Descope
+            update_kwargs = {
+                "login_id": descope_user_id,
+                "custom_attributes": {
                     "staff_id": str(staff_id),
                     "business_id": str(business_id),
                 },
-            )
+            }
+
+            # Only include profile fields if provided
+            if email is not None:
+                update_kwargs["email"] = email
+            if name is not None:
+                update_kwargs["name"] = name
+            if email_verified is not None:
+                # Descope expects "verified_email" flag for
+                # email verification state
+                update_kwargs["verified_email"] = email_verified
+
+            descope_client.mgmt.user.update(**update_kwargs)
 
             logger.info(
                 "Updated Descope user attributes",
@@ -208,6 +247,22 @@ class AuthService:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_staff_by_descope_user_id(
+        descope_user_id: str, db: AsyncSession
+    ) -> Staff | None:
+        """
+        Backward-compatible alias for retrieving staff by Descope user ID.
+
+        Args:
+            descope_user_id: Descope user ID
+            db: Database session
+
+        Returns:
+            Staff or None if not found
+        """
+        return await AuthService.get_user_by_descope_id(descope_user_id, db)
+
+    @staticmethod
     async def validate_descope_token(token: str) -> dict:
         """
         Validate Descope JWT token and extract user information.
@@ -231,7 +286,12 @@ class AuthService:
             # Validate JWT token with Descope
             # If validation succeeds, jwt_response contains the session data
             # If validation fails, an AuthException is raised
-            jwt_response = descope_client.validate_session(token)
+            audience = getattr(settings, "DESCOPE_AUDIENCE", None)
+            jwt_response = (
+                descope_client.validate_session(token, audience)
+                if audience
+                else descope_client.validate_session(token)
+            )
 
             # Extract user information from JWT
             user_info = jwt_response

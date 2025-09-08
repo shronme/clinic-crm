@@ -3,16 +3,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.database import get_db
-from app.api.deps.auth import get_current_staff
 from app.services.auth import AuthService
-from app.schemas.staff import StaffResponse
-from app.models.staff import Staff
+from app.schemas.staff import StaffResponse, StaffMeResponse
+from app.services.business import business_service
+from app.schemas.business import BusinessResponse
 
 router = APIRouter()
 security = HTTPBearer()
 
 
-@router.get("/me", response_model=StaffResponse)
+@router.get("/me", response_model=StaffMeResponse)
 async def get_current_user_info(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
@@ -25,7 +25,7 @@ async def get_current_user_info(
     descope_user_id = user_info["descope_user_id"]
 
     # Try to get existing staff member
-    staff = await AuthService.get_staff_by_descope_user_id(descope_user_id, db)
+    staff = await AuthService.get_user_by_descope_id(descope_user_id, db)
 
     if not staff:
         # Staff doesn't exist, auto-setup
@@ -36,7 +36,12 @@ async def get_current_user_info(
             db=db,
         )
 
-    return StaffResponse.from_staff(staff)
+    # Load business details
+    business = await business_service.get_business(db, staff.business_id)
+
+    staff_payload = StaffResponse.from_staff(staff)
+    business_payload = BusinessResponse.model_validate(business)
+    return StaffMeResponse(**staff_payload.dict(), business=business_payload)
 
 
 @router.post("/setup", response_model=StaffResponse)

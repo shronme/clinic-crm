@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # Descope Authentication
     DESCOPE_PROJECT_ID: Optional[str] = None
     DESCOPE_MANAGEMENT_KEY: Optional[str] = None
+    DESCOPE_BASE_URL: Optional[str] = None
+    DESCOPE_AUDIENCE: Optional[str] = None
 
     # Database
     DATABASE_URL: str
@@ -29,7 +31,11 @@ class Settings(BaseSettings):
     REDIS_URL: str
 
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:8080",
+    ]
+    ALLOWED_ORIGIN_REGEX: Optional[str] = r"http://(localhost|127\\.0\\.0\\.1)(:\\d+)?"
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

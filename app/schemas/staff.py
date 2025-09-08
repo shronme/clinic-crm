@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, validator
 
 from app.models.availability_override import OverrideType
+from app.schemas.business import BusinessResponse
 from app.models.staff import StaffRole
 from app.models.time_off import TimeOffStatus, TimeOffType
 from app.models.working_hours import WeekDay
@@ -87,7 +88,11 @@ class StaffResponse(BaseModel):
                 "update_appointments",
             ]
         elif staff.role == "FRONT_DESK":
-            permissions = ["read_appointments", "create_appointments", "read_customers"]
+            permissions = [
+                "read_appointments",
+                "create_appointments",
+                "read_customers",
+            ]
 
         return cls(
             id=str(staff.id),
@@ -101,6 +106,12 @@ class StaffResponse(BaseModel):
             created_at=staff.created_at,
             updated_at=staff.updated_at,
         )
+
+
+class StaffMeResponse(StaffResponse):
+    """Extended response for /me endpoint including business details."""
+
+    business: BusinessResponse
 
 
 class StaffSummary(BaseModel):

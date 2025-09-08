@@ -24,10 +24,26 @@ logger = structlog.get_logger(__name__)
 # Initialize Descope client (only if configured and available)
 descope_client = None
 if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
-    descope_client = DescopeClient(
-        project_id=settings.DESCOPE_PROJECT_ID,
-        management_key=settings.DESCOPE_MANAGEMENT_KEY,
-    )
+    client_kwargs = {
+        "project_id": settings.DESCOPE_PROJECT_ID,
+        "management_key": settings.DESCOPE_MANAGEMENT_KEY,
+    }
+    if getattr(settings, "DESCOPE_BASE_URL", None):
+        client_kwargs["base_url"] = settings.DESCOPE_BASE_URL
+    try:
+        descope_client = DescopeClient(**client_kwargs)
+        logger.info(
+            "Descope client initialized in deps",
+            project_id=(
+                settings.DESCOPE_PROJECT_ID[:4] + "***"
+                if settings.DESCOPE_PROJECT_ID
+                else None
+            ),
+            base_url=(settings.DESCOPE_BASE_URL or "default"),
+        )
+    except Exception as e:
+        logger.error("Failed to initialize Descope client in deps", error=str(e))
+        descope_client = None
 
 # HTTP Bearer token extractor
 security = HTTPBearer()
@@ -50,12 +66,17 @@ async def get_current_staff(
         return await _get_staff_dev_fallback(credentials.credentials, db)
 
     token = credentials.credentials
-    logger.info(f"Token: {token}")
+    logger.info("Received bearer token", token_preview=(token[:10] + "***"))
     try:
         # Validate JWT token with Descope
         # If validation succeeds, jwt_response contains the session data
         # If validation fails, an AuthException is raised
-        jwt_response = descope_client.validate_session(token)
+        audience = getattr(settings, "DESCOPE_AUDIENCE", None)
+        jwt_response = (
+            descope_client.validate_session(token, audience)
+            if audience
+            else descope_client.validate_session(token)
+        )
 
         # Debug: Log the response structure and all available fields
         logger.info(
