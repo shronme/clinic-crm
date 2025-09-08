@@ -14,12 +14,13 @@ from sqlalchemy.ext.asyncio import (
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Load test environment variables before importing app modules
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv("test.env")
+# Ensure test env vars override host env so Descope stays disabled in tests
+load_dotenv("test.env", override=True)
 
-from app.core.database import Base, get_db
-from app.main import app
+from app.core.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
 
 # Detect if we're running inside Docker container
 if os.path.exists("/.dockerenv"):
@@ -35,10 +36,11 @@ else:
 DB_USER = "clinic_user"
 DB_PASSWORD = "clinic_password"
 
-# Use environment variable to determine test database
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/test_clinic_crm",
+# Build test database URL explicitly based on environment
+# Always use local hostnames when not in Docker to avoid "postgres" DNS issues
+TEST_DATABASE_URL = (
+    "postgresql+asyncpg://"
+    f"{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/test_clinic_crm"
 )
 
 
