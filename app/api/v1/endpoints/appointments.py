@@ -128,6 +128,89 @@ async def get_appointments(
     )
 
 
+@router.get("/calendar")
+async def get_calendar_data(
+    db: AsyncSession = Depends(get_db),
+    current_staff: Staff = Depends(get_current_staff),
+    date: Optional[str] = Query(
+        None, description="Optional date filter for calendar data"
+    ),
+):
+    """Get calendar data including staff, services, customers, and appointments."""
+    from app.services.staff_management import StaffManagementService
+    from app.services.service import ServiceManagementService
+    from app.services.customer import customer_service
+    from app.schemas.appointment import AppointmentSearch, AppointmentFilters
+
+    try:
+        # Get all data needed for calendar
+        staff_service = StaffManagementService(db)
+        appointment_service = AppointmentService(db)
+
+        # Get staff members
+        staff_members = await staff_service.list_staff(
+            business_id=current_staff.business_id, include_inactive=False
+        )
+
+        # Get services
+        services = await ServiceManagementService.get_services(
+            db, business_id=current_staff.business_id, is_active=True
+        )
+
+        # Get customers
+        customers = await customer_service.get_customers(
+            db, business_id=current_staff.business_id, limit=1000
+        )
+
+        # Get appointments - if date is provided, filter by date range
+        if date:
+            from datetime import datetime, timedelta
+
+            try:
+                target_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
+                start_date = target_date.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                end_date = start_date + timedelta(days=1)
+
+                # Create search filters for date range
+                filters = AppointmentFilters(
+                    business_id=current_staff.business_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            except ValueError:
+                # If date parsing fails, get all appointments
+                filters = AppointmentFilters(business_id=current_staff.business_id)
+        else:
+            filters = AppointmentFilters(business_id=current_staff.business_id)
+
+        # Create search object
+        search = AppointmentSearch(
+            query=None,
+            filters=filters,
+            page=1,
+            page_size=100,  # Maximum allowed page size
+            sort_by="scheduled_datetime",
+            sort_order="asc",
+        )
+
+        appointments, _ = await appointment_service.get_appointments(search)
+
+        return {
+            "staff": staff_members,
+            "services": services,
+            "customers": customers,
+            "appointments": appointments,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get calendar data: {str(e)}",
+        )
+
+
 @router.get("/{appointment_uuid}", response_model=AppointmentWithRelations)
 async def get_appointment(
     appointment_uuid: UUID,

@@ -739,7 +739,9 @@ async def get_staff_services(
         result.append(
             {
                 "id": staff_service.id,
-                "service_id": staff_service.service_id,
+                "service_id": str(
+                    staff_service.service.uuid
+                ),  # Return service UUID instead of integer ID
                 "staff_id": staff_service.staff_id,
                 "override_duration_minutes": staff_service.override_duration_minutes,
                 "override_price": staff_service.override_price,
@@ -804,7 +806,9 @@ async def get_staff_with_services(
         services_data.append(
             {
                 "id": staff_service.id,
-                "service_id": staff_service.service_id,
+                "service_id": str(
+                    staff_service.service.uuid
+                ),  # Return service UUID instead of integer ID
                 "staff_id": staff_service.staff_id,
                 "override_duration_minutes": staff_service.override_duration_minutes,
                 "override_price": staff_service.override_price,

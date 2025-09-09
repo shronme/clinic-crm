@@ -51,7 +51,6 @@ services:
       - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
       - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
       - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
-      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +80,6 @@ services:
       - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
       - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
       - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
-      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,7 +106,6 @@ services:
       - DESCOPE_PROJECT_ID=${DESCOPE_PROJECT_ID}
       - DESCOPE_MANAGEMENT_KEY=${DESCOPE_MANAGEMENT_KEY}
       - DESCOPE_BASE_URL=${DESCOPE_BASE_URL}
-      - DESCOPE_AUDIENCE=${DESCOPE_AUDIENCE}
     depends_on:
       postgres:
         condition: service_healthy

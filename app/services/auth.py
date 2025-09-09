@@ -23,15 +23,11 @@ logger = structlog.get_logger(__name__)
 # Initialize Descope client (only if configured and available)
 descope_client = None
 if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
-    # Allow overriding base URL for non-default Descope regions
-    client_kwargs = {
-        "project_id": settings.DESCOPE_PROJECT_ID,
-        "management_key": settings.DESCOPE_MANAGEMENT_KEY,
-    }
-    if getattr(settings, "DESCOPE_BASE_URL", None):
-        client_kwargs["base_url"] = settings.DESCOPE_BASE_URL
     try:
-        descope_client = DescopeClient(**client_kwargs)
+        descope_client = DescopeClient(
+            project_id=settings.DESCOPE_PROJECT_ID,
+            management_key=settings.DESCOPE_MANAGEMENT_KEY,
+        )
         logger.info(
             "Descope client initialized",
             project_id=(
@@ -39,7 +35,6 @@ if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
                 if settings.DESCOPE_PROJECT_ID
                 else None
             ),
-            base_url=(settings.DESCOPE_BASE_URL or "default"),
         )
     except Exception as e:
         logger.error("Failed to initialize Descope client", error=str(e))
@@ -73,10 +68,27 @@ class AuthService:
 
         if existing_staff:
             logger.info(
-                "Found existing staff member",
+                "Found existing staff member by descope_user_id",
                 staff_id=existing_staff.id,
                 descope_user_id=descope_user_id,
             )
+            return existing_staff
+
+        # If not found by descope_user_id, try to find by email
+        result = await db.execute(select(Staff).where(Staff.email == email))
+        existing_staff = result.scalar_one_or_none()
+
+        if existing_staff:
+            logger.info(
+                "Found existing staff member by email, updating descope_user_id",
+                staff_id=existing_staff.id,
+                email=email,
+                descope_user_id=descope_user_id,
+            )
+            # Update the existing staff with the descope_user_id
+            existing_staff.descope_user_id = descope_user_id
+            await db.commit()
+            await db.refresh(existing_staff)
             return existing_staff
 
         # If no existing staff, create new business and staff
@@ -286,12 +298,7 @@ class AuthService:
             # Validate JWT token with Descope
             # If validation succeeds, jwt_response contains the session data
             # If validation fails, an AuthException is raised
-            audience = getattr(settings, "DESCOPE_AUDIENCE", None)
-            jwt_response = (
-                descope_client.validate_session(token, audience)
-                if audience
-                else descope_client.validate_session(token)
-            )
+            jwt_response = descope_client.validate_session(token)
 
             # Extract user information from JWT
             user_info = jwt_response

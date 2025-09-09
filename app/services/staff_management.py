@@ -80,10 +80,10 @@ class StaffManagementService:
         # 2. Create user in Descope with custom claims (if configured)
         if descope_client and staff_data.email:
             try:
-                descope_user = descope_client.management.user.create(
+                descope_user = descope_client.mgmt.user.create(
                     login_id=staff_data.email,
                     email=staff_data.email,
-                    name=staff_data.name,
+                    display_name=staff_data.name,
                     custom_attributes={
                         "staff_id": str(staff.id),
                         "business_id": str(staff.business_id),
@@ -92,7 +92,7 @@ class StaffManagementService:
                 )
 
                 # 3. Store Descope user ID in staff record
-                staff.descope_user_id = descope_user["userId"]
+                staff.descope_user_id = descope_user["user"]["userId"]
                 await self.db.commit()
                 await self.db.refresh(staff)
 
@@ -170,7 +170,11 @@ class StaffManagementService:
 
         # Update fields
         for field, value in staff_data.dict(exclude_unset=True).items():
-            setattr(staff, field, value)
+            # Convert enum to string value for database storage
+            if field == "role" and hasattr(value, "value"):
+                setattr(staff, field, value.value)
+            else:
+                setattr(staff, field, value)
 
         await self.db.commit()
         await self.db.refresh(staff)
@@ -189,7 +193,11 @@ class StaffManagementService:
 
         # Update fields
         for field, value in staff_data.dict(exclude_unset=True).items():
-            setattr(staff, field, value)
+            # Convert enum to string value for database storage
+            if field == "role" and hasattr(value, "value"):
+                setattr(staff, field, value.value)
+            else:
+                setattr(staff, field, value)
 
         await self.db.commit()
         await self.db.refresh(staff)
@@ -827,7 +835,13 @@ class StaffManagementService:
         self, staff_id: int, available_only: bool = True
     ) -> list[StaffService]:
         """Get services assigned to staff."""
-        query = select(StaffService).where(StaffService.staff_id == staff_id)
+        from sqlalchemy.orm import selectinload
+
+        query = (
+            select(StaffService)
+            .options(selectinload(StaffService.service))
+            .where(StaffService.staff_id == staff_id)
+        )
 
         if available_only:
             query = query.where(StaffService.is_available)

@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     DESCOPE_PROJECT_ID: Optional[str] = None
     DESCOPE_MANAGEMENT_KEY: Optional[str] = None
     DESCOPE_BASE_URL: Optional[str] = None
-    DESCOPE_AUDIENCE: Optional[str] = None
 
     # Database
     DATABASE_URL: str

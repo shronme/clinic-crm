@@ -24,14 +24,11 @@ logger = structlog.get_logger(__name__)
 # Initialize Descope client (only if configured and available)
 descope_client = None
 if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
-    client_kwargs = {
-        "project_id": settings.DESCOPE_PROJECT_ID,
-        "management_key": settings.DESCOPE_MANAGEMENT_KEY,
-    }
-    if getattr(settings, "DESCOPE_BASE_URL", None):
-        client_kwargs["base_url"] = settings.DESCOPE_BASE_URL
     try:
-        descope_client = DescopeClient(**client_kwargs)
+        descope_client = DescopeClient(
+            project_id=settings.DESCOPE_PROJECT_ID,
+            management_key=settings.DESCOPE_MANAGEMENT_KEY,
+        )
         logger.info(
             "Descope client initialized in deps",
             project_id=(
@@ -39,7 +36,6 @@ if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
                 if settings.DESCOPE_PROJECT_ID
                 else None
             ),
-            base_url=(settings.DESCOPE_BASE_URL or "default"),
         )
     except Exception as e:
         logger.error("Failed to initialize Descope client in deps", error=str(e))
@@ -71,12 +67,7 @@ async def get_current_staff(
         # Validate JWT token with Descope
         # If validation succeeds, jwt_response contains the session data
         # If validation fails, an AuthException is raised
-        audience = getattr(settings, "DESCOPE_AUDIENCE", None)
-        jwt_response = (
-            descope_client.validate_session(token, audience)
-            if audience
-            else descope_client.validate_session(token)
-        )
+        jwt_response = descope_client.validate_session(token)
 
         # Debug: Log the response structure and all available fields
         logger.info(
@@ -199,16 +190,40 @@ async def get_current_staff(
 async def _get_staff_dev_fallback(token: str, db: AsyncSession) -> Staff:
     """
     Development/test fallback authentication.
-    Expects token to be a simple staff ID string.
+    Handles both simple staff ID strings and JWT tokens.
+    For JWT tokens, uses a default staff ID or the first available staff member.
     """
+    # Try to parse as integer first (legacy behavior)
     try:
         staff_id = int(token)
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid staff ID format"
-        )
+        # If not an integer, it's likely a JWT token
+        # In development mode, use a default staff ID or find the first staff member
+        logger.info("JWT token detected in dev mode, using fallback staff lookup")
 
-    # Look up staff from database
+        # Try to find the first staff member in the database
+        try:
+            result = await db.execute(select(Staff).limit(1))
+            staff = result.scalar_one_or_none()
+
+            if staff:
+                logger.info(
+                    f"Using fallback staff member: {staff.name} (ID: {staff.id})"
+                )
+                return staff
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No staff members found in database",
+                )
+        except Exception as e:
+            logger.error("Error finding fallback staff member", error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error during fallback authentication",
+            )
+
+    # Look up staff from database using the provided ID
     try:
         result = await db.execute(select(Staff).where(Staff.id == staff_id))
         staff = result.scalar_one_or_none()
