@@ -44,9 +44,7 @@ class CustomerService:
                     )
                 )
                 if existing_customer.scalar_one_or_none():
-                    raise ValueError(
-                        "Customer with this email already exists in this business"
-                    )
+                    raise ValueError("לקוח עם האימייל הזה כבר קיים בעסק")
 
             customer_dict = customer_data.dict(exclude={"business_id"})
             customer_dict["business_id"] = business_id
