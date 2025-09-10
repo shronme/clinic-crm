@@ -91,10 +91,20 @@ class StaffManagementService:
                     },
                 )
 
-                # 3. Store Descope user ID in staff record
-                staff.descope_user_id = descope_user["user"]["userId"]
-                await self.db.commit()
-                await self.db.refresh(staff)
+                # 3. Store Descope user ID in staff record (support multiple response shapes)
+                descope_user_id = None
+                if isinstance(descope_user, dict):
+                    # Prefer top-level userId if present, else nested under 'user'
+                    descope_user_id = descope_user.get("userId")
+                    if not descope_user_id:
+                        nested_user = descope_user.get("user") or {}
+                        if isinstance(nested_user, dict):
+                            descope_user_id = nested_user.get("userId")
+                # Only set and persist if we actually resolved a string id
+                if isinstance(descope_user_id, str) and descope_user_id:
+                    staff.descope_user_id = descope_user_id
+                    await self.db.commit()
+                    await self.db.refresh(staff)
 
             except Exception as e:
                 # Log the error but don't fail the staff creation

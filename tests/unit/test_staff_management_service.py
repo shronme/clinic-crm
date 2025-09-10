@@ -649,7 +649,7 @@ class TestStaffManagementService:
             mock_descope_user = {"userId": "descope_user_123"}
 
             with patch("app.services.staff_management.descope_client") as mock_descope:
-                mock_descope.management.user.create.return_value = mock_descope_user
+                mock_descope.mgmt.user.create.return_value = mock_descope_user
 
                 # Mock the get_staff method that's called at the end of create_staff
                 expected_staff = Staff(
@@ -676,10 +676,10 @@ class TestStaffManagementService:
                     assert result.descope_user_id == "descope_user_123"
 
                     # Verify Descope user was created with correct attributes
-                    mock_descope.management.user.create.assert_called_once_with(
+                    mock_descope.mgmt.user.create.assert_called_once_with(
                         login_id="newstaff@test.com",
                         email="newstaff@test.com",
-                        name="New Staff with Descope",
+                        display_name="New Staff with Descope",
                         custom_attributes={
                             "staff_id": "1",
                             "business_id": "1",
@@ -750,7 +750,7 @@ class TestStaffManagementService:
                     assert result.descope_user_id is None
 
                     # Verify Descope user was NOT created
-                    mock_descope.management.user.create.assert_not_called()
+                    mock_descope.mgmt.user.create.assert_not_called()
 
                     mock_db_session.add.assert_called_once()
                     mock_db_session.commit.assert_called()
@@ -790,7 +790,7 @@ class TestStaffManagementService:
 
             # Mock Descope client to raise an exception
             with patch("app.services.staff_management.descope_client") as mock_descope:
-                mock_descope.management.user.create.side_effect = Exception(
+                mock_descope.mgmt.user.create.side_effect = Exception(
                     "Descope API Error"
                 )
 
@@ -821,7 +821,7 @@ class TestStaffManagementService:
                     )  # Should be None due to failure
 
                     # Verify Descope user creation was attempted
-                    mock_descope.management.user.create.assert_called_once()
+                    mock_descope.mgmt.user.create.assert_called_once()
 
                     # Staff should still be created despite Descope failure
                     mock_db_session.add.assert_called_once()

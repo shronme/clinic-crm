@@ -29,6 +29,7 @@ from app.schemas.appointment import (
     ConflictCheckRequest,
     ConflictCheckResponse,
 )
+from app.schemas.scheduling import StaffAvailabilityQuery
 from app.services.appointment import AppointmentService
 
 router = APIRouter()
@@ -147,20 +148,84 @@ async def get_calendar_data(
         staff_service = StaffManagementService(db)
         appointment_service = AppointmentService(db)
 
-        # Get staff members
-        staff_members = await staff_service.list_staff(
+        # Get staff members with their services
+        staff_members_raw = await staff_service.list_staff(
             business_id=current_staff.business_id, include_inactive=False
         )
 
+        # Convert staff to dict format for proper serialization
+        staff_members = []
+        for staff in staff_members_raw:
+            staff_dict = {
+                "id": staff.id,
+                "uuid": str(staff.uuid),
+                "name": staff.name,
+                "email": staff.email,
+                "phone": staff.phone,
+                "avatar_url": staff.avatar_url,
+                "bio": staff.bio,
+                "role": staff.role,
+                "is_bookable": staff.is_bookable,
+                "is_active": staff.is_active,
+                "display_order": staff.display_order,
+            }
+            staff_members.append(staff_dict)
+
+        # Get staff services for pricing/duration overrides
+        from app.models.staff_service import StaffService
+        from sqlalchemy.orm import selectinload
+        from sqlalchemy import select
+
+        staff_services_query = (
+            select(StaffService)
+            .options(
+                selectinload(StaffService.staff), selectinload(StaffService.service)
+            )
+            .where(StaffService.staff_id.in_([s["id"] for s in staff_members]))
+        )
+
+        staff_services_result = await db.execute(staff_services_query)
+        staff_services = staff_services_result.scalars().all()
+
         # Get services
-        services = await ServiceManagementService.get_services(
+        services_raw = await ServiceManagementService.get_services(
             db, business_id=current_staff.business_id, is_active=True
         )
 
+        # Convert services to dict format with proper decimal handling
+        services = []
+        for service in services_raw:
+            service_dict = {
+                "id": service.id,
+                "uuid": str(service.uuid),
+                "name": service.name,
+                "description": service.description,
+                "duration_min": service.duration_minutes,
+                "price": float(service.price) if service.price else 0.0,
+                "buffer_before_minutes": service.buffer_before_minutes,
+                "buffer_after_minutes": service.buffer_after_minutes,
+                "is_active": service.is_active,
+                "requires_deposit": service.requires_deposit,
+                "deposit_amount": (
+                    float(service.deposit_amount) if service.deposit_amount else None
+                ),
+                "max_advance_booking_days": service.max_advance_booking_days,
+                "min_lead_time_hours": service.min_lead_time_hours,
+                "sort_order": service.sort_order,
+                "image_url": service.image_url,
+                "color": service.color,
+            }
+            services.append(service_dict)
+
         # Get customers
-        customers = await customer_service.get_customers(
-            db, business_id=current_staff.business_id, limit=1000
+        customers_raw = await customer_service.get_customers(
+            db, business_id=current_staff.business_id, limit=1000, include_inactive=True
         )
+
+        # Map customers to frontend format
+        from app.schemas.customer import CustomerResponse
+
+        customers = [CustomerResponse.from_orm(customer) for customer in customers_raw]
 
         # Get appointments - if date is provided, filter by date range
         if date:
@@ -195,19 +260,187 @@ async def get_calendar_data(
             sort_order="asc",
         )
 
-        appointments, _ = await appointment_service.get_appointments(search)
+        appointments_raw, _ = await appointment_service.get_appointments(search)
+
+        # Convert appointments to dict format with proper decimal handling
+        appointments = []
+        for appointment in appointments_raw:
+            appointment_dict = {
+                "id": appointment.id,
+                "uuid": str(appointment.uuid),
+                "business_id": appointment.business_id,
+                "customer_id": appointment.customer_id,
+                "staff_id": appointment.staff_id,
+                "service_id": appointment.service_id,
+                "scheduled_datetime": (
+                    appointment.scheduled_datetime.isoformat()
+                    if appointment.scheduled_datetime
+                    else None
+                ),
+                "estimated_end_datetime": (
+                    appointment.estimated_end_datetime.isoformat()
+                    if appointment.estimated_end_datetime
+                    else None
+                ),
+                "actual_start_datetime": (
+                    appointment.actual_start_datetime.isoformat()
+                    if appointment.actual_start_datetime
+                    else None
+                ),
+                "actual_end_datetime": (
+                    appointment.actual_end_datetime.isoformat()
+                    if appointment.actual_end_datetime
+                    else None
+                ),
+                "duration_minutes": appointment.duration_minutes,
+                "status": appointment.status,
+                "previous_status": appointment.previous_status,
+                "status_changed_at": (
+                    appointment.status_changed_at.isoformat()
+                    if appointment.status_changed_at
+                    else None
+                ),
+                "booked_by_staff_id": appointment.booked_by_staff_id,
+                "booking_source": appointment.booking_source,
+                "total_price": (
+                    float(appointment.total_price) if appointment.total_price else 0.0
+                ),
+                "deposit_required": appointment.deposit_required,
+                "deposit_amount": (
+                    float(appointment.deposit_amount)
+                    if appointment.deposit_amount
+                    else None
+                ),
+                "deposit_paid": appointment.deposit_paid,
+                "deposit_paid_at": (
+                    appointment.deposit_paid_at.isoformat()
+                    if appointment.deposit_paid_at
+                    else None
+                ),
+                "is_cancelled": appointment.is_cancelled,
+                "cancelled_at": (
+                    appointment.cancelled_at.isoformat()
+                    if appointment.cancelled_at
+                    else None
+                ),
+                "cancelled_by_staff_id": appointment.cancelled_by_staff_id,
+                "cancellation_reason": appointment.cancellation_reason,
+                "cancellation_notes": appointment.cancellation_notes,
+                "cancellation_fee": (
+                    float(appointment.cancellation_fee)
+                    if appointment.cancellation_fee
+                    else None
+                ),
+                "original_appointment_id": appointment.original_appointment_id,
+                "rescheduled_from_datetime": (
+                    appointment.rescheduled_from_datetime.isoformat()
+                    if appointment.rescheduled_from_datetime
+                    else None
+                ),
+                "reschedule_count": appointment.reschedule_count,
+                "customer_notes": appointment.customer_notes,
+                "internal_notes": appointment.internal_notes,
+                "reminder_sent_at": (
+                    appointment.reminder_sent_at.isoformat()
+                    if appointment.reminder_sent_at
+                    else None
+                ),
+                "confirmation_sent_at": (
+                    appointment.confirmation_sent_at.isoformat()
+                    if appointment.confirmation_sent_at
+                    else None
+                ),
+                "is_no_show": appointment.is_no_show,
+                "no_show_fee": (
+                    float(appointment.no_show_fee) if appointment.no_show_fee else None
+                ),
+                "slot_locked": appointment.slot_locked,
+                "slot_locked_at": (
+                    appointment.slot_locked_at.isoformat()
+                    if appointment.slot_locked_at
+                    else None
+                ),
+                "slot_lock_expires_at": (
+                    appointment.slot_lock_expires_at.isoformat()
+                    if appointment.slot_lock_expires_at
+                    else None
+                ),
+                "locked_by_session_id": appointment.locked_by_session_id,
+                "created_at": (
+                    appointment.created_at.isoformat()
+                    if appointment.created_at
+                    else None
+                ),
+                "updated_at": (
+                    appointment.updated_at.isoformat()
+                    if appointment.updated_at
+                    else None
+                ),
+            }
+            appointments.append(appointment_dict)
+
+        # Debug logging
+        print(f"Calendar data - Staff count: {len(staff_members)}")
+        print(f"Calendar data - Services count: {len(services)}")
+        print(f"Calendar data - Customers count: {len(customers)}")
+        print(f"Calendar data - Appointments count: {len(appointments)}")
+
+        # Convert staff services to dict format for frontend
+        staff_services_data = []
+        for staff_service in staff_services:
+            # Ensure all decimal values are converted to float for JSON serialization
+            effective_price = staff_service.effective_price
+            if hasattr(effective_price, "__float__"):
+                effective_price = float(effective_price)
+
+            staff_services_data.append(
+                {
+                    "staff_id": staff_service.staff_id,
+                    "service_id": staff_service.service_id,
+                    "effective_duration_minutes": staff_service.effective_duration_minutes,
+                    "effective_price": effective_price,
+                    "is_available": staff_service.is_available,
+                    "expertise_level": staff_service.expertise_level,
+                }
+            )
 
         return {
             "staff": staff_members,
             "services": services,
             "customers": customers,
             "appointments": appointments,
+            "staff_services": staff_services_data,
         }
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get calendar data: {str(e)}",
+        )
+
+
+@router.post("/check-availability")
+async def check_availability(
+    request: StaffAvailabilityQuery,
+    db: AsyncSession = Depends(get_db),
+    current_staff: Staff = Depends(get_current_staff),
+):
+    """Check staff availability for a specific time slot."""
+    try:
+        from app.services.scheduling import SchedulingEngineService
+
+        scheduling_service = SchedulingEngineService(db)
+        availability_slots = await scheduling_service.get_staff_availability(request)
+
+        return {
+            "available_slots": availability_slots,
+            "is_available": len(availability_slots) > 0
+            and any(slot.status == "available" for slot in availability_slots),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check availability: {str(e)}",
         )
 
 

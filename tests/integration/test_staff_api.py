@@ -425,12 +425,12 @@ class TestStaffAPI:
         # Mock Descope client for this test
         with patch("app.services.staff_management.descope_client") as mock_descope:
             mock_descope_user = {"userId": "descope_user_123"}
-            mock_descope.management.user.create.return_value = mock_descope_user
+            mock_descope.mgmt.user.create.return_value = mock_descope_user
 
             response = await client.post(
                 "/api/v1/staff/", json=staff_data, headers=headers
             )
-
+            print(f"Called create staff response: {response.json()}")
             # Should succeed even if Descope is mocked
             assert response.status_code == 201
 
@@ -440,10 +440,10 @@ class TestStaffAPI:
             assert created_staff["role"] == "STAFF"
 
             # Verify Descope user creation was attempted
-            mock_descope.management.user.create.assert_called_once_with(
+            mock_descope.mgmt.user.create.assert_called_once_with(
                 login_id="descope.staff@test.com",
                 email="descope.staff@test.com",
-                name="Staff with Descope",
+                display_name="Staff with Descope",
                 custom_attributes={
                     "staff_id": str(created_staff["id"]),
                     "business_id": str(test_business.id),
@@ -481,7 +481,7 @@ class TestStaffAPI:
             assert created_staff["role"] == "FRONT_DESK"
 
             # Verify Descope user creation was NOT attempted
-            mock_descope.management.user.create.assert_not_called()
+            mock_descope.mgmt.user.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_staff_descope_failure_graceful(
@@ -501,9 +501,7 @@ class TestStaffAPI:
 
         # Mock Descope client to raise an exception
         with patch("app.services.staff_management.descope_client") as mock_descope:
-            mock_descope.management.user.create.side_effect = Exception(
-                "Descope API Error"
-            )
+            mock_descope.mgmt.user.create.side_effect = Exception("Descope API Error")
 
             response = await client.post(
                 "/api/v1/staff/", json=staff_data, headers=headers
@@ -518,4 +516,4 @@ class TestStaffAPI:
             assert created_staff["role"] == "STAFF"
 
             # Verify Descope user creation was attempted
-            mock_descope.management.user.create.assert_called_once()
+            mock_descope.mgmt.user.create.assert_called_once()
