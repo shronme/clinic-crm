@@ -125,7 +125,7 @@ async def scheduling_test_data(db: AsyncSession):
         business_hours = WorkingHours(
             owner_type=OwnerType.BUSINESS.value,
             owner_id=business.id,
-            weekday=weekday.name,
+            weekday=str(weekday.value),
             start_time=time(9, 0),
             end_time=time(18, 0),
             break_start_time=time(12, 0),
@@ -145,7 +145,7 @@ async def scheduling_test_data(db: AsyncSession):
         staff_hours = WorkingHours(
             owner_type=OwnerType.STAFF.value,
             owner_id=staff.id,
-            weekday=weekday.name,
+            weekday=str(weekday.value),
             start_time=time(9, 0),
             end_time=time(17, 0),
             break_start_time=time(12, 0),

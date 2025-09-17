@@ -1,10 +1,12 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date as date_type, time
 from typing import Any, Optional
+import logging
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.availability_override import AvailabilityOverride
+from app.services.holidays import HolidayService
 from app.models.business import Business
 from app.models.service import Service
 from app.models.staff import Staff
@@ -23,32 +25,176 @@ from app.schemas.scheduling import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 class SchedulingEngineService:
     """Core scheduling engine for barber & beautician CRM."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def check_day_has_availability(
+        self, staff_uuid: str, date: date_type, service_uuid: str = None
+    ) -> bool:
+        """
+        Check if a specific day has any available slots for a staff member.
+
+        Args:
+            staff_uuid: UUID of the staff member
+            date: Date to check
+            service_uuid: Optional service UUID to filter by
+
+        Returns:
+            True if the day has at least one available slot, False otherwise
+        """
+        logger.info(f"Checking if day {date} has availability for staff {staff_uuid}")
+
+        # Get staff and service info
+        staff = await self._get_staff_by_uuid(staff_uuid)
+        if not staff:
+            logger.warning(f"Staff not found: {staff_uuid}")
+            return False
+
+        service = None
+        if service_uuid:
+            service = await self._get_service_by_uuid(service_uuid)
+            if not service:
+                logger.warning(f"Service not found: {service_uuid}")
+                return False
+
+        # Create start and end datetime for the day
+        start_datetime = datetime.combine(date, time.min).replace(tzinfo=timezone.utc)
+        end_datetime = datetime.combine(date, time.max).replace(tzinfo=timezone.utc)
+
+        logger.debug(f"Checking availability for {start_datetime} to {end_datetime}")
+
+        # Check if there's at least one available slot during the day
+        current_time = start_datetime
+        slot_duration = timedelta(minutes=30)  # Default 30-minute slots
+
+        if service:
+            slot_duration = timedelta(minutes=service.duration_minutes)
+
+        # We only need to find ONE available slot, so we can exit early
+        while current_time < end_datetime:
+            slot_end = current_time + slot_duration
+            if slot_end > end_datetime:
+                break
+
+            # Check if this slot is available
+            is_available, _ = await self._check_slot_availability(
+                staff, current_time, slot_end, service
+            )
+
+            if is_available == AvailabilityStatus.AVAILABLE:
+                logger.info(f"Found available slot at {current_time} on {date}")
+                return True
+
+            # Move to next slot
+            current_time += slot_duration
+
+        logger.info(f"No available slots found for {date}")
+        return False
+
+    async def get_available_days(
+        self,
+        staff_uuid: str,
+        start_date: date_type,
+        end_date: date_type,
+        service_uuid: str = None,
+    ) -> list[date_type]:
+        """
+        Get all days within a date range that have at least one available slot.
+
+        Args:
+            staff_uuid: UUID of the staff member
+            start_date: Start date of the range (inclusive)
+            end_date: End date of the range (inclusive)
+            service_uuid: Optional service UUID to filter by
+
+        Returns:
+            List of dates that have availability
+        """
+        logger.info(
+            f"Getting available days for staff {staff_uuid} from {start_date} to {end_date}"
+        )
+
+        available_days = []
+        current_date = start_date
+
+        while current_date <= end_date:
+            has_availability = await self.check_day_has_availability(
+                staff_uuid, current_date, service_uuid
+            )
+
+            if has_availability:
+                available_days.append(current_date)
+                logger.debug(f"Day {current_date} has availability")
+
+            # Move to next day
+            current_date += timedelta(days=1)
+
+        logger.info(
+            f"Found {len(available_days)} available days out of {(end_date - start_date).days + 1} total days"
+        )
+        return available_days
+
     async def get_staff_availability(
         self, query: StaffAvailabilityQuery
     ) -> list[AvailabilitySlot]:
         """Get available time slots for a staff member."""
+        logger.info(
+            f"Starting availability check for staff {query.staff_uuid} "
+            f"from {query.start_datetime} to {query.end_datetime} "
+            f"with slot duration {query.slot_duration_minutes} minutes"
+        )
+        # Step 1: Get staff member
+        logger.debug(f"Looking up staff member with UUID: {query.staff_uuid}")
         staff = await self._get_staff_by_uuid(query.staff_uuid)
         if not staff:
+            logger.warning(f"Staff member not found with UUID: {query.staff_uuid}")
             return []
+        logger.info(
+            f"Found staff member: {staff.name} (ID: {staff.id}, Business ID: {staff.business_id})"
+        )
 
+        # Step 2: Get service if specified
         service = None
         if query.service_uuid:
+            logger.debug(f"Looking up service with UUID: {query.service_uuid}")
             service = await self._get_service_by_uuid(query.service_uuid)
             if not service:
+                logger.warning(f"Service not found with UUID: {query.service_uuid}")
                 return []
+            logger.info(
+                f"Found service: {service.name} "
+                f"(Duration: {service.total_duration_minutes} minutes)"
+            )
+        else:
+            logger.debug(
+                "No specific service requested - checking general availability"
+            )
 
+        # Step 3: Generate time slots
+        logger.info("Starting slot generation process")
         slots = []
         current_time = query.start_datetime
         slot_duration = timedelta(minutes=query.slot_duration_minutes)
+        total_slots_checked = 0
+        available_slots = 0
+        busy_slots = 0
+        logger.info(f"Current time: {current_time}")
+        logger.info(f"Query end time: {query.end_datetime}")
+        logger.info(f"Slot duration: {slot_duration}")
+        logger.info(
+            f"Loop condition: {current_time} < {query.end_datetime} = {current_time < query.end_datetime}"
+        )
 
         while current_time < query.end_datetime:
+            logger.info(f"ENTERING LOOP - Iteration {total_slots_checked + 1}")
             slot_end = current_time + slot_duration
+            total_slots_checked += 1
 
             # Check if this slot can accommodate the service
             if service:
@@ -56,11 +202,29 @@ class SchedulingEngineService:
                     minutes=service.total_duration_minutes
                 )
                 if service_end > query.end_datetime:
+                    logger.debug(
+                        "Service duration extends beyond query end time, "
+                        "stopping slot generation"
+                    )
                     break
 
+            logger.info(
+                f"Checking availability for slot {total_slots_checked}: "
+                f"{current_time} - {slot_end}"
+            )
             availability_status, conflicts = await self._check_slot_availability(
                 staff, current_time, slot_end, service
             )
+            if availability_status == AvailabilityStatus.AVAILABLE:
+                available_slots += 1
+                logger.debug(f"Slot {total_slots_checked} is AVAILABLE")
+            else:
+                busy_slots += 1
+                logger.warning(
+                    f"Slot {total_slots_checked} is UNAVAILABLE - "
+                    f"conflicts: {[c.value for c in conflicts]} - "
+                    f"Time: {current_time} - {slot_end}"
+                )
 
             if (
                 query.include_busy_slots
@@ -81,6 +245,19 @@ class SchedulingEngineService:
 
             current_time += slot_duration
 
+        logger.info(
+            f"Availability check completed: {total_slots_checked} total slots "
+            f"checked, {available_slots} available, {busy_slots} busy, "
+            f"{len(slots)} slots returned"
+        )
+
+        # If all slots are busy, log some diagnostic info
+        if available_slots == 0 and total_slots_checked > 0:
+            logger.error(
+                f"ALL SLOTS ARE UNAVAILABLE! This suggests a configuration issue. "
+                f"Staff ID: {staff.id}, Business ID: {staff.business_id}, "
+                f"Service: {service.name if service else 'None'}"
+            )
         return slots
 
     async def validate_appointment(
@@ -145,59 +322,112 @@ class SchedulingEngineService:
         service: Optional[Service] = None,
     ) -> tuple[AvailabilityStatus, list[ConflictType]]:
         """Check if a time slot is available for a staff member."""
+        logger.debug(
+            f"Checking slot availability for staff {staff.id} "
+            f"from {start_time} to {end_time}"
+        )
+
         # Use the existing comprehensive validation method
         if service:
+            logger.debug(
+                f"Performing comprehensive validation with service: {service.name}"
+            )
             scheduling_conflicts = await self._validate_scheduling_constraints(
                 staff, service, start_time, end_time
             )
             conflicts = [conflict.conflict_type for conflict in scheduling_conflicts]
+            logger.debug(
+                f"Comprehensive validation found {len(conflicts)} conflicts: "
+                f"{[c.value for c in conflicts]}"
+            )
         else:
             # For slots without a specific service, do basic availability checks
+            logger.debug("Performing basic availability checks (no specific service)")
             conflicts = []
 
             # Check business working hours
-            if not await self._is_within_business_hours(
+            logger.debug(
+                f"Checking business working hours for business {staff.business_id}"
+            )
+            business_hours_ok = await self._is_within_business_hours(
                 staff.business_id, start_time, end_time
-            ):
+            )
+            if not business_hours_ok:
                 conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
+                logger.debug("Slot conflicts with business working hours")
+            else:
+                logger.debug("Slot is within business working hours")
 
             # Check staff working hours
-            if not await self._is_within_staff_working_hours(
+            logger.debug(f"Checking staff working hours for staff {staff.id}")
+            staff_hours_ok = await self._is_within_staff_working_hours(
                 staff.id, start_time, end_time
-            ):
+            )
+            if not staff_hours_ok:
                 conflicts.append(ConflictType.OUTSIDE_WORKING_HOURS)
+                logger.debug("Slot conflicts with staff working hours")
+            else:
+                logger.debug("Slot is within staff working hours")
 
             # Check for time off conflicts
-            if await self._has_time_off_conflict(staff.id, start_time, end_time):
+            logger.debug(f"Checking for time off conflicts for staff {staff.id}")
+            has_time_off = await self._has_time_off_conflict(
+                staff.id, start_time, end_time
+            )
+            if has_time_off:
                 conflicts.append(ConflictType.TIME_OFF)
+                logger.debug("Slot conflicts with approved time off")
+            else:
+                logger.debug("No time off conflicts found")
 
             # Check availability overrides
+            logger.debug(f"Checking availability overrides for staff {staff.id}")
             override_effect = await self._check_availability_overrides(
                 staff.id, start_time, end_time
             )
             if override_effect == "unavailable":
                 conflicts.append(ConflictType.AVAILABILITY_OVERRIDE)
+                logger.debug("Slot is unavailable due to availability override")
+            else:
+                logger.debug(f"Availability override effect: {override_effect}")
 
             # Check for existing appointment conflicts
-            if await self._has_appointment_conflict(staff.id, start_time, end_time):
+            logger.debug(
+                f"Checking for existing appointment conflicts for staff {staff.id}"
+            )
+            has_appointment_conflict = await self._has_appointment_conflict(
+                staff.id, start_time, end_time
+            )
+            if has_appointment_conflict:
                 conflicts.append(ConflictType.EXISTING_APPOINTMENT)
+                logger.debug("Slot conflicts with existing appointment")
+            else:
+                logger.debug("No existing appointment conflicts found")
 
         # Determine status
         if conflicts:
+            logger.debug(f"Slot is UNAVAILABLE due to {len(conflicts)} conflicts")
             return AvailabilityStatus.UNAVAILABLE, conflicts
         else:
+            logger.debug("Slot is AVAILABLE")
             return AvailabilityStatus.AVAILABLE, []
 
     async def _validate_scheduling_constraints(
         self, staff: Staff, service: Service, start_time: datetime, end_time: datetime
     ) -> list[SchedulingConflict]:
         """Validate all scheduling constraints for an appointment."""
+        logger.debug(
+            f"Starting comprehensive validation for staff {staff.id} and service {service.name}"
+        )
         conflicts = []
 
         # Business hours validation
-        if not await self._is_within_business_hours(
+        logger.debug(f"Validating business hours for business {staff.business_id}")
+        business_hours_ok = await self._is_within_business_hours(
             staff.business_id, start_time, end_time
-        ):
+        )
+        if not business_hours_ok:
+            logger.debug("Business hours validation failed")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.OUTSIDE_WORKING_HOURS,
@@ -206,11 +436,16 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Business hours validation passed")
 
         # Staff working hours validation
-        if not await self._is_within_staff_working_hours(
+        logger.debug(f"Validating staff working hours for staff {staff.id}")
+        staff_hours_ok = await self._is_within_staff_working_hours(
             staff.id, start_time, end_time
-        ):
+        )
+        if not staff_hours_ok:
+            logger.debug("Staff working hours validation failed")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.OUTSIDE_WORKING_HOURS,
@@ -219,9 +454,14 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Staff working hours validation passed")
 
         # Time off validation
-        if await self._has_time_off_conflict(staff.id, start_time, end_time):
+        logger.debug(f"Validating time off for staff {staff.id}")
+        has_time_off = await self._has_time_off_conflict(staff.id, start_time, end_time)
+        if has_time_off:
+            logger.debug("Time off validation failed - staff has approved time off")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.TIME_OFF,
@@ -230,12 +470,16 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Time off validation passed")
 
         # Availability override validation
+        logger.debug(f"Validating availability overrides for staff {staff.id}")
         override_effect = await self._check_availability_overrides(
             staff.id, start_time, end_time
         )
         if override_effect == "unavailable":
+            logger.debug("Availability override validation failed - staff unavailable")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.AVAILABILITY_OVERRIDE,
@@ -244,9 +488,18 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug(
+                f"Availability override validation passed (effect: {override_effect})"
+            )
 
         # Existing appointment validation
-        if await self._has_appointment_conflict(staff.id, start_time, end_time):
+        logger.debug(f"Validating existing appointments for staff {staff.id}")
+        has_appointment_conflict = await self._has_appointment_conflict(
+            staff.id, start_time, end_time
+        )
+        if has_appointment_conflict:
+            logger.debug("Existing appointment validation failed - conflict found")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.EXISTING_APPOINTMENT,
@@ -255,11 +508,16 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Existing appointment validation passed")
 
         # Lead time policy validation
-        if not await self._check_lead_time_policy(
+        logger.debug(f"Validating lead time policy for business {staff.business_id}")
+        lead_time_ok = await self._check_lead_time_policy(
             staff.business_id, service, start_time
-        ):
+        )
+        if not lead_time_ok:
+            logger.debug("Lead time policy validation failed")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.LEAD_TIME_VIOLATION,
@@ -268,11 +526,18 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Lead time policy validation passed")
 
         # Advance booking policy validation
-        if not await self._check_advance_booking_policy(
+        logger.debug(
+            f"Validating advance booking policy for business {staff.business_id}"
+        )
+        advance_booking_ok = await self._check_advance_booking_policy(
             staff.business_id, service, start_time
-        ):
+        )
+        if not advance_booking_ok:
+            logger.debug("Advance booking policy validation failed")
             conflicts.append(
                 SchedulingConflict(
                     conflict_type=ConflictType.ADVANCE_BOOKING_VIOLATION,
@@ -281,21 +546,35 @@ class SchedulingEngineService:
                     end_datetime=end_time,
                 )
             )
+        else:
+            logger.debug("Advance booking policy validation passed")
 
+        logger.debug(
+            f"Comprehensive validation completed with {len(conflicts)} conflicts found"
+        )
         return conflicts
 
     async def _is_within_business_hours(
         self, business_id: int, start_time: datetime, end_time: datetime
     ) -> bool:
         """Check if time period is within business hours."""
+        # Holiday check: if the date is a holiday in Israel, treat as closed
+        if HolidayService.is_holiday(start_time) or HolidayService.is_holiday(end_time):
+            logger.debug(
+                f"Date {start_time.date()} or {end_time.date()} is a holiday in Israel; business considered closed"
+            )
+            return False
         # Get business working hours for the day
         weekday = WeekDay(start_time.weekday())
+        logger.debug(
+            f"Checking business hours for business {business_id} on {weekday.name} (weekday={weekday.value})"
+        )
 
         query = select(WorkingHours).where(
             and_(
                 WorkingHours.owner_type == OwnerType.BUSINESS.value,
                 WorkingHours.owner_id == business_id,
-                WorkingHours.weekday == weekday.name,
+                WorkingHours.weekday == str(weekday.value),
                 WorkingHours.is_active,
             )
         )
@@ -303,24 +582,46 @@ class SchedulingEngineService:
         business_hours = result.scalar_one_or_none()
 
         if not business_hours:
+            logger.warning(
+                f"No business hours found for business {business_id} on {weekday.name} - "
+                f"this will make ALL slots unavailable!"
+            )
             return False
 
+        logger.debug(
+            f"Found business hours: {business_hours.start_time} - {business_hours.end_time}"
+        )
+
+        # Apply pre-holiday cutoff at 15:00 local time (Asia/Jerusalem)
+        cutoff_utc = HolidayService.get_pre_holiday_cutoff_utc(start_time)
+        if cutoff_utc is not None:
+            # If the slot extends beyond cutoff, it is outside business hours
+            if end_time > cutoff_utc:
+                return False
+
         # Check if time period is within working hours
-        return business_hours.is_time_available(
-            start_time
-        ) and business_hours.is_time_available(end_time)
+        start_available = business_hours.is_time_available(start_time)
+        end_available = business_hours.is_time_available(end_time)
+        logger.debug(
+            f"Time availability check: start={start_available}, end={end_available}"
+        )
+
+        return start_available and end_available
 
     async def _is_within_staff_working_hours(
         self, staff_id: int, start_time: datetime, end_time: datetime
     ) -> bool:
         """Check if time period is within staff working hours."""
         weekday = WeekDay(start_time.weekday())
+        logger.debug(
+            f"Checking staff working hours for staff {staff_id} on {weekday.name} (weekday={weekday.value})"
+        )
 
         query = select(WorkingHours).where(
             and_(
                 WorkingHours.owner_type == OwnerType.STAFF.value,
                 WorkingHours.owner_id == staff_id,
-                WorkingHours.weekday == weekday.name,
+                WorkingHours.weekday == str(weekday.value),
                 WorkingHours.is_active,
             )
         )
@@ -328,11 +629,23 @@ class SchedulingEngineService:
         staff_hours = result.scalar_one_or_none()
 
         if not staff_hours:
+            logger.warning(
+                f"No staff working hours found for staff {staff_id} on {weekday.name} - "
+                f"this will make ALL slots unavailable!"
+            )
             return False
 
-        return staff_hours.is_time_available(
-            start_time
-        ) and staff_hours.is_time_available(end_time)
+        logger.debug(
+            f"Found staff working hours: {staff_hours.start_time} - {staff_hours.end_time}"
+        )
+
+        start_available = staff_hours.is_time_available(start_time)
+        end_available = staff_hours.is_time_available(end_time)
+        logger.debug(
+            f"Staff time availability check: start={start_available}, end={end_available}"
+        )
+
+        return start_available and end_available
 
     async def _has_time_off_conflict(
         self, staff_id: int, start_time: datetime, end_time: datetime
@@ -404,6 +717,10 @@ class SchedulingEngineService:
         """Check if time period conflicts with existing appointments."""
         from app.models.appointment import Appointment, AppointmentStatus
 
+        logger.debug(
+            f"Checking for appointment conflicts for staff {staff_id} from {start_time} to {end_time}"
+        )
+
         # Query for active appointments that overlap with the requested time period
         query = select(Appointment).where(
             and_(
@@ -439,7 +756,14 @@ class SchedulingEngineService:
         result = await self.db.execute(query)
         conflicting_appointment = result.scalar_one_or_none()
 
-        return conflicting_appointment is not None
+        if conflicting_appointment:
+            logger.debug(
+                f"Found conflicting appointment: {conflicting_appointment.scheduled_datetime} - {conflicting_appointment.estimated_end_datetime}"
+            )
+            return True
+        else:
+            logger.debug("No appointment conflicts found")
+            return False
 
     async def _check_lead_time_policy(
         self, business_id: int, service: Service, requested_time: datetime
@@ -599,6 +923,11 @@ class SchedulingEngineService:
                 "start_time": working_hours.break_start_time.isoformat(),
                 "end_time": working_hours.break_end_time.isoformat(),
             }
+
+        # Apply pre-holiday cutoff to the returned hours if applicable
+        if HolidayService.is_day_before_holiday(query.date):
+            # Display local end time of 15:00 on holiday eve
+            result["hours"]["end_time"] = "15:00:00"
 
         return result
 

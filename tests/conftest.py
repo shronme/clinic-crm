@@ -21,6 +21,7 @@ load_dotenv("test.env", override=True)
 
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.holidays import HolidayService  # noqa: E402
 
 # Detect if we're running inside Docker container
 if os.path.exists("/.dockerenv"):
@@ -94,6 +95,30 @@ def override_get_db(db: AsyncSession):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def mock_israel_holidays(monkeypatch):
+    """Stabilize tests by disabling real holiday detection.
+
+    Mocks `HolidayService.is_holiday` to always return False and
+    `HolidayService.get_holiday_name` to return None. This prevents
+    random test failures when running on real holidays.
+    """
+
+    monkeypatch.setattr(
+        HolidayService,
+        "is_holiday",
+        classmethod(lambda cls, dt: False),
+        raising=True,
+    )
+    monkeypatch.setattr(
+        HolidayService,
+        "get_holiday_name",
+        classmethod(lambda cls, dt: None),
+        raising=True,
+    )
+    yield
+
+
 @pytest.fixture
 def mock_datetime():
     """Mock datetime for consistent testing."""
@@ -105,8 +130,8 @@ def get_auth_headers(staff_id: int) -> dict[str, str]:
     """
     Generate authentication headers for tests.
 
-    Since Descope is not configured in tests, the Bearer token
-    is treated as a simple staff ID string by the fallback auth.
+    Since Descope is not configured in tests, the Bearer token is
+    treated as a simple staff ID string by the fallback auth.
     """
     return {"Authorization": f"Bearer {staff_id}"}
 

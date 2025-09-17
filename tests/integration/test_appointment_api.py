@@ -59,7 +59,7 @@ async def test_business_working_hours(db, test_business):
             uuid=uuid4(),
             owner_type=OwnerType.BUSINESS.value,
             owner_id=test_business.id,
-            weekday=day.name,
+            weekday=str(day.value),
             start_time=time(9, 0),  # 9:00 AM
             end_time=time(17, 0),  # 5:00 PM
             is_active=True,
@@ -104,7 +104,7 @@ async def test_staff_working_hours(db, test_staff):
             uuid=uuid4(),
             owner_type=OwnerType.STAFF.value,
             owner_id=test_staff.id,
-            weekday=day.name,
+            weekday=str(day.value),
             start_time=time(9, 0),  # 9:00 AM
             end_time=time(17, 0),  # 5:00 PM
             is_active=True,

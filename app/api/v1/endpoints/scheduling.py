@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Any
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +17,10 @@ from app.schemas.scheduling import (
     StaffScheduleQuery,
 )
 from app.services.scheduling import SchedulingEngineService
+from app.services.holidays import HolidayService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/staff/availability")
@@ -53,9 +56,25 @@ async def get_staff_availability(
     - Service duration and buffer requirements
     - Lead time and advance booking policies
     """
+    logger.info(
+        (
+            "Staff availability request received - Staff: %s, Time range: %s to %s, "
+            "Service: %s, Slot duration: %smin, Include busy slots: %s, "
+            "Requested by staff: %s"
+        ),
+        staff_uuid,
+        start_datetime,
+        end_datetime,
+        service_uuid,
+        slot_duration_minutes,
+        include_busy_slots,
+        current_staff.id,
+    )
     try:
+        logger.debug("Creating scheduling service instance")
         scheduling_service = SchedulingEngineService(db)
 
+        logger.debug("Building availability query")
         query = StaffAvailabilityQuery(
             staff_uuid=staff_uuid,
             start_datetime=start_datetime,
@@ -65,13 +84,107 @@ async def get_staff_availability(
             include_busy_slots=include_busy_slots,
         )
 
+        logger.info("Starting availability calculation")
         slots = await scheduling_service.get_staff_availability(query)
+
+        available_count = len([s for s in slots if s.status.value == "available"])
+        busy_count = len(slots) - available_count
+
+        logger.info(
+            "Availability calculation completed successfully - Total slots: %s, "
+            "Available: %s, Busy: %s",
+            len(slots),
+            available_count,
+            busy_count,
+        )
 
         return {"slots": slots}
 
     except Exception as e:
+        logger.error(
+            f"Failed to get staff availability for {staff_uuid}: {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500, detail=f"Failed to get staff availability: {str(e)}"
+        )
+
+
+@router.get("/staff/available-days")
+async def get_staff_available_days(
+    staff_uuid: str = Query(..., description="Staff member UUID"),
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    service_uuid: str = Query(None, description="Optional service UUID"),
+    db: AsyncSession = Depends(get_db),
+    current_staff: Staff = Depends(get_current_staff),
+) -> dict[str, Any]:
+    """
+    Get all days within a date range that have at least one available slot.
+
+    This endpoint is more efficient than getting all individual slots as it only
+    returns which days have availability, not the specific time slots.
+    """
+    try:
+        # Parse dates
+        start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+        logger.info(
+            "Getting available days for staff %s from %s to %s",
+            staff_uuid,
+            start_date_obj,
+            end_date_obj,
+        )
+
+        # Validate date range
+        if start_date_obj > end_date_obj:
+            raise HTTPException(
+                status_code=400, detail="Start date must be before or equal to end date"
+            )
+
+        # Limit date range to prevent excessive processing
+        date_range_days = (end_date_obj - start_date_obj).days + 1
+        if date_range_days > 90:  # Limit to 3 months
+            raise HTTPException(
+                status_code=400, detail="Date range cannot exceed 90 days"
+            )
+
+        scheduling_service = SchedulingEngineService(db)
+
+        logger.info("Starting available days calculation")
+        available_days = await scheduling_service.get_available_days(
+            staff_uuid, start_date_obj, end_date_obj, service_uuid
+        )
+
+        # Convert dates to strings for JSON response
+        available_days_str = [day.strftime("%Y-%m-%d") for day in available_days]
+
+        logger.info(
+            "Available days calculation completed - Found %s available days out of %s total days",
+            len(available_days),
+            date_range_days,
+        )
+
+        return {
+            "available_days": available_days_str,
+            "total_days_checked": date_range_days,
+            "available_count": len(available_days),
+        }
+
+    except ValueError as e:
+        logger.error(f"Invalid date format: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail="Invalid date format. Use YYYY-MM-DD format."
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to get available days for {staff_uuid}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve available days: {str(e)}",
         )
 
 
@@ -141,6 +254,14 @@ async def get_business_hours(
         )
 
         hours = await scheduling_service.get_business_hours(query)
+        # Mark closed if holiday
+        try:
+            dt = date
+            if HolidayService.is_holiday(dt):
+                hours["is_open"] = False
+                hours["holiday"] = HolidayService.get_holiday_name(dt)
+        except Exception:
+            pass
         return hours
 
     except Exception as e:

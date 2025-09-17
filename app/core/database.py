@@ -1,7 +1,11 @@
 # ✅ COMPLETED: SQLAlchemy async imports and dependencies
 import structlog
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import declarative_base
 
 from app.core.config import settings
@@ -11,7 +15,7 @@ logger = structlog.get_logger(__name__)
 # ✅ COMPLETED: Async database engine configuration
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False,  # Disabled to prevent SQLAlchemy engine logs
     future=True,
     pool_pre_ping=True,
     pool_recycle=300,

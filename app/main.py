@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 import structlog
 from fastapi import FastAPI, Request
@@ -25,6 +26,12 @@ structlog.configure(
     logger_factory=structlog.stdlib.LoggerFactory(),
     cache_logger_on_first_use=True,
 )
+
+# Configure standard library logging to suppress SQLAlchemy engine logs
+logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
 
 logger = structlog.get_logger(__name__)
 
