@@ -55,8 +55,6 @@ app = FastAPI(
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
-    # Allow both trailing slash and non-trailing slash URLs
-    redirect_slashes=False,
 )
 
 # CORS middleware
