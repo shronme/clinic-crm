@@ -28,6 +28,7 @@ MANIFEST
 .vscode/
 
 # Environment
+supabase.env
 .env
 .venv
 env/
