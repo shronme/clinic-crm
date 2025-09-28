@@ -22,7 +22,9 @@ from app.services.scheduling import SchedulingEngineService
 
 
 def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> datetime:
-    """Get a datetime that's guaranteed to be in the future and on a weekday."""
+    """Get a datetime that's guaranteed to be in the future, on a weekday, and not a holiday."""
+    from app.services.holidays import HolidayService
+
     now = datetime.now(timezone.utc)
     target_date = now + timedelta(days=days_ahead)
     target_datetime = target_date.replace(
@@ -38,6 +40,36 @@ def get_future_datetime(hour: int, minute: int = 0, days_ahead: int = 7) -> date
     if target_datetime.weekday() >= 5:  # Saturday or Sunday
         days_to_monday = 7 - target_datetime.weekday()  # 1 for Saturday, 2 for Sunday
         target_datetime += timedelta(days=days_to_monday)
+
+    # Check if the date is a holiday or holiday eve, and find the next available date
+    max_attempts = 30  # Prevent infinite loop
+    attempts = 0
+
+    while (
+        HolidayService.is_holiday(target_datetime)
+        or HolidayService.is_day_before_holiday(target_datetime)
+    ) and attempts < max_attempts:
+        target_datetime += timedelta(days=1)
+        attempts += 1
+
+        # If we moved to weekend, move to next Monday
+        if target_datetime.weekday() >= 5:  # Saturday or Sunday
+            days_to_monday = (
+                7 - target_datetime.weekday()
+            )  # 1 for Saturday, 2 for Sunday
+            target_datetime += timedelta(days=days_to_monday)
+
+    if attempts >= max_attempts:
+        # Fallback: use a date far in the future (1 year ahead)
+        target_datetime = now + timedelta(days=365)
+        target_datetime = target_datetime.replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+
+        # Ensure weekday
+        if target_datetime.weekday() >= 5:  # Saturday or Sunday
+            days_to_monday = 7 - target_datetime.weekday()
+            target_datetime += timedelta(days=days_to_monday)
 
     return target_datetime
 
@@ -177,7 +209,7 @@ class TestSchedulingEngineService:
         staff = scheduling_test_data["staff"]
         scheduling_service = SchedulingEngineService(db)
 
-        # Use a future date that's guaranteed to be in the future
+        # Use a future date that's guaranteed to be in the future, on a weekday, and not a holiday
         future_date = get_future_datetime(hour=9)
 
         query = StaffAvailabilityQuery(
@@ -210,7 +242,7 @@ class TestSchedulingEngineService:
         service = scheduling_test_data["service"]
         scheduling_service = SchedulingEngineService(db)
 
-        # Use a future date that's guaranteed to be in the future
+        # Use a future date that's guaranteed to be in the future, on a weekday, and not a holiday
         future_date = get_future_datetime(hour=9)
 
         query = StaffAvailabilityQuery(
@@ -500,6 +532,7 @@ class TestSchedulingEngineService:
         addon2 = scheduling_test_data["addon2"]
         scheduling_service = SchedulingEngineService(db)
 
+        # Use a future date that's guaranteed to be in the future, on a weekday, and not a holiday
         future_time = get_future_datetime(hour=9)
 
         # Test with one addon
@@ -591,6 +624,7 @@ class TestSchedulingEngineService:
         scheduling_test_data["addon1"]
         scheduling_service = SchedulingEngineService(db)
 
+        # Use a future date that's guaranteed to be in the future, on a weekday, and not a holiday
         future_date = get_future_datetime(hour=9)
 
         # Test availability with addon duration

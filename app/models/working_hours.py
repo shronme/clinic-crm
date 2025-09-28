@@ -101,7 +101,7 @@ class WorkingHours(Base):
         if (
             self.break_start_time
             and self.break_end_time
-            and self.break_start_time <= check_time.time() <= self.break_end_time
+            and self.break_start_time < check_time.time() < self.break_end_time
         ):
             return False
 

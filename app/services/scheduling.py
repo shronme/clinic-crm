@@ -63,11 +63,23 @@ class SchedulingEngineService:
                 logger.warning(f"Service not found: {service_uuid}")
                 return False
 
-        # Create start and end datetime for the day
-        start_datetime = datetime.combine(date, time.min).replace(tzinfo=timezone.utc)
-        end_datetime = datetime.combine(date, time.max).replace(tzinfo=timezone.utc)
+        # Get effective working hours for the staff member
+        effective_opening_time, effective_closing_time = (
+            await self._get_effective_working_hours(staff, date)
+        )
 
-        logger.debug(f"Checking availability for {start_datetime} to {end_datetime}")
+        # Create start and end datetime for the day
+        start_datetime = datetime.combine(date, effective_opening_time).replace(
+            tzinfo=timezone.utc
+        )
+        end_datetime = datetime.combine(date, effective_closing_time).replace(
+            tzinfo=timezone.utc
+        )
+
+        logger.debug(
+            f"Checking availability for {start_datetime} to {end_datetime} "
+            f"(working hours: {effective_opening_time} - {effective_closing_time})"
+        )
 
         # Check if there's at least one available slot during the day
         current_time = start_datetime
@@ -117,7 +129,8 @@ class SchedulingEngineService:
             List of dates that have availability
         """
         logger.info(
-            f"Getting available days for staff {staff_uuid} from {start_date} to {end_date}"
+            f"Getting available days for staff {staff_uuid} "
+            f"from {start_date} to {end_date}"
         )
 
         available_days = []
@@ -136,7 +149,8 @@ class SchedulingEngineService:
             current_date += timedelta(days=1)
 
         logger.info(
-            f"Found {len(available_days)} available days out of {(end_date - start_date).days + 1} total days"
+            f"Found {len(available_days)} available days out of "
+            f"{(end_date - start_date).days + 1} total days"
         )
         return available_days
 
@@ -156,7 +170,8 @@ class SchedulingEngineService:
             logger.warning(f"Staff member not found with UUID: {query.staff_uuid}")
             return []
         logger.info(
-            f"Found staff member: {staff.name} (ID: {staff.id}, Business ID: {staff.business_id})"
+            f"Found staff member: {staff.name} "
+            f"(ID: {staff.id}, Business ID: {staff.business_id})"
         )
 
         # Step 2: Get service if specified
@@ -179,19 +194,51 @@ class SchedulingEngineService:
         # Step 3: Generate time slots
         logger.info("Starting slot generation process")
         slots = []
-        current_time = query.start_datetime
+
+        # Get effective working hours for the staff member on the start date
+        effective_opening_time, effective_closing_time = (
+            await self._get_effective_working_hours(staff, query.start_datetime.date())
+        )
+        effective_opening_datetime = datetime.combine(
+            query.start_datetime.date(), effective_opening_time
+        ).replace(tzinfo=timezone.utc)
+        effective_closing_datetime = datetime.combine(
+            query.start_datetime.date(), effective_closing_time
+        ).replace(tzinfo=timezone.utc)
+
+        # Ensure both datetimes are timezone-aware for comparison
+        start_datetime = query.start_datetime
+        if start_datetime.tzinfo is None:
+            start_datetime = start_datetime.replace(tzinfo=timezone.utc)
+
+        end_datetime = query.end_datetime
+        if end_datetime.tzinfo is None:
+            end_datetime = end_datetime.replace(tzinfo=timezone.utc)
+
+        # Start from the later of requested start time or effective opening time
+        current_time = max(start_datetime, effective_opening_datetime)
+
+        # End at the earlier of requested end time or effective closing time
+        end_time = min(end_datetime, effective_closing_datetime)
+
         slot_duration = timedelta(minutes=query.slot_duration_minutes)
         total_slots_checked = 0
         available_slots = 0
         busy_slots = 0
-        logger.info(f"Current time: {current_time}")
-        logger.info(f"Query end time: {query.end_datetime}")
+        logger.info(
+            f"Effective working hours: {effective_opening_time} - {effective_closing_time}"
+        )
+        logger.info(f"Requested start time: {query.start_datetime}")
+        logger.info(f"Actual start time: {current_time}")
+        logger.info(f"Requested end time: {query.end_datetime}")
+        logger.info(f"Effective end time: {end_time}")
         logger.info(f"Slot duration: {slot_duration}")
         logger.info(
-            f"Loop condition: {current_time} < {query.end_datetime} = {current_time < query.end_datetime}"
+            f"Loop condition: {current_time} < {end_time} = "
+            f"{current_time < end_time}"
         )
 
-        while current_time < query.end_datetime:
+        while current_time < end_time:
             logger.info(f"ENTERING LOOP - Iteration {total_slots_checked + 1}")
             slot_end = current_time + slot_duration
             total_slots_checked += 1
@@ -201,9 +248,9 @@ class SchedulingEngineService:
                 service_end = current_time + timedelta(
                     minutes=service.total_duration_minutes
                 )
-                if service_end > query.end_datetime:
+                if service_end > end_time:
                     logger.debug(
-                        "Service duration extends beyond query end time, "
+                        "Service duration extends beyond effective end time, "
                         "stopping slot generation"
                     )
                     break
@@ -633,6 +680,15 @@ class SchedulingEngineService:
                 f"No staff working hours found for staff {staff_id} on {weekday.name} - "
                 f"this will make ALL slots unavailable!"
             )
+            # Debug: Let's see what working hours exist
+            all_hours_query = select(WorkingHours).where(
+                WorkingHours.owner_type == OwnerType.STAFF.value
+            )
+            all_result = await self.db.execute(all_hours_query)
+            all_hours = all_result.scalars().all()
+            logger.warning(
+                f"Available staff working hours: {[(h.owner_id, h.weekday, h.start_time, h.end_time) for h in all_hours]}"
+            )
             return False
 
         logger.debug(
@@ -643,6 +699,11 @@ class SchedulingEngineService:
         end_available = staff_hours.is_time_available(end_time)
         logger.debug(
             f"Staff time availability check: start={start_available}, end={end_available}"
+        )
+        logger.debug(
+            f"Staff hours: {staff_hours.start_time}-{staff_hours.end_time}, "
+            f"Break: {staff_hours.break_start_time}-{staff_hours.break_end_time}, "
+            f"Slot: {start_time.time()}-{end_time.time()}"
         )
 
         return start_available and end_available
@@ -825,8 +886,28 @@ class SchedulingEngineService:
     ) -> list[AvailabilitySlot]:
         """Find alternative available slots around the preferred time."""
 
-        # Search for alternatives within 7 days of preferred time
-        search_start = preferred_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Get effective working hours for the staff member on the preferred date
+        effective_opening_time, effective_closing_time = (
+            await self._get_effective_working_hours(staff, preferred_time.date())
+        )
+        effective_opening_datetime = datetime.combine(
+            preferred_time.date(), effective_opening_time
+        ).replace(tzinfo=timezone.utc)
+        effective_closing_datetime = datetime.combine(
+            preferred_time.date(), effective_closing_time
+        ).replace(tzinfo=timezone.utc)
+
+        # Ensure preferred_time is timezone-aware for comparison
+        preferred_time_aware = preferred_time
+        if preferred_time_aware.tzinfo is None:
+            preferred_time_aware = preferred_time_aware.replace(tzinfo=timezone.utc)
+
+        # Search for alternatives within 7 days of preferred time, starting from opening time
+        search_start = max(
+            preferred_time_aware.replace(hour=0, minute=0, second=0, microsecond=0),
+            effective_opening_datetime,
+        )
+        # End search at the end of the day (closing time) on the last day
         search_end = search_start + timedelta(days=7)
 
         # Create availability query
@@ -883,6 +964,98 @@ class SchedulingEngineService:
             select(Business).filter(Business.id == business_id)
         )
         return result.scalar_one_or_none()
+
+    async def _get_effective_opening_time(
+        self, staff: Staff, check_date: date_type
+    ) -> time:
+        """Get the effective opening time for a staff member on a given date.
+
+        Returns the later of business opening time or staff opening time.
+        If either is not available, defaults to 09:00.
+        """
+        opening_time, _ = await self._get_effective_working_hours(staff, check_date)
+        return opening_time
+
+    async def _get_effective_working_hours(
+        self, staff: Staff, check_date: date_type
+    ) -> tuple[time, time]:
+        """Get the effective working hours for a staff member on a given date.
+
+        Returns (opening_time, closing_time) tuple.
+        Uses the later opening time and earlier closing time of business/staff hours.
+        Defaults to 09:00-18:00 if no working hours are configured.
+        """
+        weekday = WeekDay(check_date.weekday())
+
+        # Get business hours
+        business_query = select(WorkingHours).where(
+            and_(
+                WorkingHours.owner_type == OwnerType.BUSINESS.value,
+                WorkingHours.owner_id == staff.business_id,
+                WorkingHours.weekday == str(weekday.value),
+                WorkingHours.is_active,
+            )
+        )
+        business_result = await self.db.execute(business_query)
+        business_hours = business_result.scalar_one_or_none()
+
+        # Get staff hours
+        staff_query = select(WorkingHours).where(
+            and_(
+                WorkingHours.owner_type == OwnerType.STAFF.value,
+                WorkingHours.owner_id == staff.id,
+                WorkingHours.weekday == str(weekday.value),
+                WorkingHours.is_active,
+            )
+        )
+        staff_result = await self.db.execute(staff_query)
+        staff_hours = staff_result.scalar_one_or_none()
+
+        # Determine effective opening time (later of the two)
+        business_opening = business_hours.start_time if business_hours else None
+        staff_opening = staff_hours.start_time if staff_hours else None
+
+        if business_opening and staff_opening:
+            effective_opening = max(business_opening, staff_opening)
+        elif business_opening:
+            effective_opening = business_opening
+        elif staff_opening:
+            effective_opening = staff_opening
+        else:
+            effective_opening = time(9, 0)  # Default
+
+        # Determine effective closing time (earlier of the two)
+        business_closing = business_hours.end_time if business_hours else None
+        staff_closing = staff_hours.end_time if staff_hours else None
+
+        logger.debug(
+            f"Business closing: {business_closing}, Staff closing: {staff_closing}"
+        )
+
+        if business_closing and staff_closing:
+            effective_closing = min(business_closing, staff_closing)
+        elif business_closing:
+            effective_closing = business_closing
+        elif staff_closing:
+            effective_closing = staff_closing
+        else:
+            effective_closing = time(18, 0)  # Default
+
+        logger.debug(
+            f"Effective opening: {effective_opening}, Effective closing: {effective_closing}"
+        )
+        return effective_opening, effective_closing
+
+    async def _get_effective_closing_time(
+        self, staff: Staff, check_date: date_type
+    ) -> time:
+        """Get the effective closing time for a staff member on a given date.
+
+        Returns the earlier of business closing time or staff closing time.
+        If either is not available, defaults to 18:00.
+        """
+        _, closing_time = await self._get_effective_working_hours(staff, check_date)
+        return closing_time
 
     async def get_business_hours(self, query: BusinessHoursQuery) -> dict[str, Any]:
         """Get business hours for a specific date."""
